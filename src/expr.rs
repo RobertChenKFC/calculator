@@ -1,6 +1,6 @@
-use std::ops::{Add, Sub, BitAnd};
+use std::ops::{Add, BitAnd, Sub};
 
-use crate::func::{FuncRef, Var, Arr};
+use crate::func::{Arr, FuncRef, Var};
 
 pub type ValType = i8;
 

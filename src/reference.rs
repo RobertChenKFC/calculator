@@ -2,7 +2,7 @@ use std::iter;
 use std::slice::Iter;
 
 use crate::expr::{Expr, ValType};
-use crate::func::{Arr, Func, NUM_VARS_PER_ARR_PTR, Var, ToArg};
+use crate::func::{Arr, Func, NUM_VARS_PER_ARR_PTR, ToArg, Var};
 use crate::prog::Prog;
 use crate::stmt::Stmt;
 
@@ -20,12 +20,14 @@ impl Stack {
     fn new() -> Stack {
         Stack {
             stack: vec![],
-            frame_pointers: vec![]
+            frame_pointers: vec![],
         }
     }
 
     fn push_frame<I>(&mut self, func: &Func, args: I)
-    where I: Iterator<Item = ValType> {
+    where
+        I: Iterator<Item = ValType>,
+    {
         let frame_pointer = self.stack.len();
         self.frame_pointers.push(frame_pointer);
         self.stack.resize(self.stack.len() + func.get_num_vars(), 0);
@@ -56,7 +58,8 @@ impl Stack {
 
     fn set_arr_pointer(&mut self, arr: &Arr, frame_pointer: usize) {
         let arr_vars = arr.to_vars();
-        let arr_pointer = frame_pointer + arr_vars.first().unwrap().0 + NUM_VARS_PER_ARR_PTR;
+        let arr_pointer =
+            frame_pointer + arr_vars.first().unwrap().0 + NUM_VARS_PER_ARR_PTR;
         for (byte, var) in arr_pointer.to_le_bytes().into_iter().zip(arr_vars) {
             self.set_var(var, byte as ValType);
         }
@@ -90,7 +93,10 @@ pub struct CallbackRef(usize);
 
 impl Reference {
     pub fn new() -> Reference {
-        Reference { callbacks: vec![], stack: Stack::new() }
+        Reference {
+            callbacks: vec![],
+            stack: Stack::new(),
+        }
     }
 
     pub fn register_callback<F: FnMut(ValType) + 'static>(
@@ -123,11 +129,7 @@ impl Reference {
         val
     }
 
-    fn eval_body(
-        &mut self,
-        prog: &Prog,
-        body: Iter<Stmt>,
-    ) -> Option<ValType> {
+    fn eval_body(&mut self, prog: &Prog, body: Iter<Stmt>) -> Option<ValType> {
         for stmt in body {
             if let Some(ret_val) = self.eval_stmt(prog, stmt) {
                 return Some(ret_val);
@@ -136,11 +138,7 @@ impl Reference {
         None
     }
 
-    fn eval_stmt(
-        &mut self,
-        prog: &Prog,
-        stmt: &Stmt,
-    ) -> Option<ValType> {
+    fn eval_stmt(&mut self, prog: &Prog, stmt: &Stmt) -> Option<ValType> {
         match stmt {
             Stmt::Assign(var, expr) => {
                 let val = self.eval_expr(prog, expr).unwrap();
@@ -163,8 +161,7 @@ impl Reference {
             }
             Stmt::While(cond, body) => {
                 while self.eval_expr(prog, cond).unwrap() != 0 {
-                    if let Some(val) = self.eval_body(prog, body.iter())
-                    {
+                    if let Some(val) = self.eval_body(prog, body.iter()) {
                         return Some(val);
                     }
                 }
@@ -188,7 +185,7 @@ impl Reference {
                             let val = self.eval_expr(prog, &exprs[i]).unwrap();
                             print!("{}", val);
                             i += 1;
-                        },
+                        }
                         _ => {
                             match_right_brace = false;
                             print!("{}", c);
@@ -222,21 +219,13 @@ impl Reference {
         Some(eval(lhs, rhs))
     }
 
-    fn eval_expr(
-        &mut self,
-        prog: &Prog,
-        expr: &Expr,
-    ) -> Option<ValType> {
+    fn eval_expr(&mut self, prog: &Prog, expr: &Expr) -> Option<ValType> {
         match expr {
             Expr::Add(lhs, rhs) => {
-                self.eval_binary_expr(prog, lhs, rhs, |x, y| {
-                    x.wrapping_add(y)
-                })
+                self.eval_binary_expr(prog, lhs, rhs, |x, y| x.wrapping_add(y))
             }
             Expr::Sub(lhs, rhs) => {
-                self.eval_binary_expr(prog, lhs, rhs, |x, y| {
-                    x.wrapping_sub(y)
-                })
+                self.eval_binary_expr(prog, lhs, rhs, |x, y| x.wrapping_sub(y))
             }
             Expr::And(lhs, rhs) => {
                 self.eval_binary_expr(prog, lhs, rhs, |x, y| x & y)
@@ -252,11 +241,14 @@ impl Reference {
                     if x != y { 1 } else { 0 }
                 })
             }
-            Expr::Lt(lhs, rhs) => {
-                self.eval_binary_expr(prog, lhs, rhs, |x, y| {
+            Expr::Lt(lhs, rhs) => self.eval_binary_expr(
+                prog,
+                lhs,
+                rhs,
+                |x, y| {
                     if x < y { 1 } else { 0 }
-                })
-            }
+                },
+            ),
             Expr::Le(lhs, rhs) => {
                 self.eval_binary_expr(prog, lhs, rhs, |x, y| {
                     if x <= y { 1 } else { 0 }
@@ -272,9 +264,7 @@ impl Reference {
                 self.eval_call(prog, func, args.into_iter())
             }
             Expr::Index(arr, idx) => {
-                let idx= self
-                    .eval_expr(prog, idx)
-                    .unwrap();
+                let idx = self.eval_expr(prog, idx).unwrap();
                 Some(self.stack.get_arr(arr, idx))
             }
         }

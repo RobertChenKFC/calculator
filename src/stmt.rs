@@ -1,5 +1,5 @@
 use crate::expr::{Expr, ToExpr, ValType};
-use crate::func::{Var, Arr};
+use crate::func::{Arr, Var};
 use crate::reference::CallbackRef;
 
 pub enum Stmt {

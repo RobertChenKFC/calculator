@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub, BitAnd};
+use std::ops::{Add, BitAnd, Sub};
 use std::slice::Iter;
 
 use crate::expr::{Expr, ToExpr};
@@ -73,14 +73,14 @@ pub const NUM_VARS_PER_ARR_PTR: usize = 2;
 
 impl Arr {
     pub fn at<Idx: ToExpr>(self, idx: Idx) -> ArrElem {
-        ArrElem { arr: self, idx: idx.to_expr() }
+        ArrElem {
+            arr: self,
+            idx: idx.to_expr(),
+        }
     }
 
     pub fn to_vars(self) -> Vec<Var> {
-        let vars = [
-            Var(self.0),
-            Var(self.0 + 1),
-        ];
+        let vars = [Var(self.0), Var(self.0 + 1)];
         assert_eq!(vars.len(), NUM_VARS_PER_ARR_PTR);
         vars.into_iter().collect()
     }
@@ -177,7 +177,9 @@ impl Arg {
     fn to_exprs(self) -> Vec<Expr> {
         match self {
             Arg::Expr(expr) => vec![expr],
-            Arg::Arr(arr) => arr.to_vars().into_iter().map(|var| var.to_expr()).collect(),
+            Arg::Arr(arr) => {
+                arr.to_vars().into_iter().map(|var| var.to_expr()).collect()
+            }
         }
     }
 }
@@ -201,7 +203,7 @@ impl ToArg for Arr {
 impl FuncRef {
     pub fn call<const N: usize>(self, args: [Arg; N]) -> Expr {
         let mut exprs: Vec<Expr> = vec![];
-        for arg in args  {
+        for arg in args {
             exprs.append(&mut arg.to_exprs());
         }
         Expr::Call(self, exprs)

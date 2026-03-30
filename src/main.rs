@@ -10,5 +10,4 @@ use crate::prog::Prog;
 use crate::reference::{Callback, Reference};
 use crate::stmt::{Stmt, ToStmt, check_, let_, return_};
 
-fn main() {
-}
+fn main() {}
