@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub, BitAnd};
+use std::ops::{Add, BitAnd, Sub};
 use std::slice::Iter;
 
 use crate::expr::{Expr, ToExpr};
@@ -67,22 +67,29 @@ impl ToExpr for Var {
 }
 
 #[derive(Clone, Copy)]
-pub struct Arr {
-    arr_idx: usize,
-    head_elem: Var,
-}
+pub struct Arr(pub usize);
+
+pub const NUM_VARS_PER_ARR_PTR: usize = 2;
 
 impl Arr {
     pub fn at<Idx: ToExpr>(self, idx: Idx) -> ArrElem {
-        ArrElem { arr: self, idx: idx.to_expr() }
+        ArrElem {
+            arr: self,
+            idx: idx.to_expr(),
+        }
+    }
+
+    pub fn to_vars(self) -> Vec<Var> {
+        let vars = [Var(self.0), Var(self.0 + 1)];
+        assert_eq!(vars.len(), NUM_VARS_PER_ARR_PTR);
+        vars.into_iter().collect()
     }
 }
 
 pub struct Func {
-    num_param_vars: usize,
-    num_local_vars: usize,
-    num_param_arrs: usize,
-    num_local_arrs: usize,
+    num_locals: usize,
+    local_arrs: Vec<Arr>,
+    num_params: usize,
     body: Vec<Stmt>,
     func_ref: FuncRef,
 }
@@ -93,64 +100,59 @@ pub struct FuncRef(pub usize);
 impl Func {
     pub fn new(func_ref: FuncRef) -> Func {
         Func {
-            num_param_vars: 0,
-            num_local_vars: 0,
-            num_param_arrs: 0,
-            num_local_arrs: 0,
+            num_locals: 0,
+            local_arrs: vec![],
+            num_params: 0,
             body: vec![],
             func_ref,
         }
     }
 
-    fn get_num_vars(&self) -> usize {
-        self.num_param_vars + self.num_local_vars
+    pub fn get_num_vars(&self) -> usize {
+        self.num_params + self.num_locals
     }
 
-    fn get_new_var<F: Fn(&mut Func)>(&mut self, modify_cnt: F) -> Var {
-        let var = Var(self.get_num_vars());
-        modify_cnt(self);
-        var
+    fn get_new_var(&self) -> Var {
+        Var(self.get_num_vars())
     }
 
     fn check_no_locals_declared(&self) {
-        assert_eq!(self.num_local_arrs, 0);
-        assert_eq!(self.num_local_vars, 0);
+        assert_eq!(self.num_locals, 0);
     }
 
     pub fn get_new_param_var(&mut self) -> Var {
         self.check_no_locals_declared();
-        self.get_new_var(|func| func.num_param_vars += 1)
+        let var = self.get_new_var();
+        self.num_params += 1;
+        var
     }
 
     pub fn get_new_local_var(&mut self) -> Var {
-        self.get_new_var(|func| func.num_local_vars += 1)
+        let var = self.get_new_var();
+        self.num_locals += 1;
+        var
     }
 
-    fn get_num_arrs(&self) -> usize {
-        self.num_param_arrs + self.num_local_arrs
-    }
-
-    fn get_new_arr<F: Fn(&mut Func)>(&mut self, modify_cnt: F) -> Arr {
-        let arr = Arr {
-            arr_idx: self.get_num_arrs(),
-            head_elem: Var(self.get_num_vars());
-        };
-        modify_cnt(self);
-        arr
+    fn get_new_arr(&mut self) -> Arr {
+        Arr(self.get_num_vars())
     }
 
     pub fn get_new_param_arr(&mut self) -> Arr {
         self.check_no_locals_declared();
-        self.get_new_arr(|func| {
-            func.num_param_arrs += 1;
-        })
+        let arr = self.get_new_arr();
+        self.num_params += NUM_VARS_PER_ARR_PTR;
+        arr
     }
 
     pub fn get_new_local_arr(&mut self, len: usize) -> Arr {
-        self.get_new_arr(|func| {
-            func.num_local_arrs += 1;
-            func.num_local_vars += len;
-        })
+        let arr = self.get_new_arr();
+        self.local_arrs.push(arr);
+        self.num_locals += NUM_VARS_PER_ARR_PTR + len;
+        arr
+    }
+
+    pub fn get_local_arrs(&self) -> Iter<Arr> {
+        self.local_arrs.iter()
     }
 
     pub fn set_body<const N: usize>(&mut self, body: [Stmt; N]) {
@@ -166,10 +168,52 @@ impl Func {
     }
 }
 
+pub enum Arg {
+    Expr(Expr),
+    Arr(Arr),
+}
+
+impl Arg {
+    fn to_exprs(self) -> Vec<Expr> {
+        match self {
+            Arg::Expr(expr) => vec![expr],
+            Arg::Arr(arr) => {
+                arr.to_vars().into_iter().map(|var| var.to_expr()).collect()
+            }
+        }
+    }
+}
+
+pub trait ToArg {
+    fn to_arg(self) -> Arg;
+}
+
+impl<T: ToExpr> ToArg for T {
+    fn to_arg(self) -> Arg {
+        Arg::Expr(self.to_expr())
+    }
+}
+
+impl ToArg for Arr {
+    fn to_arg(self) -> Arg {
+        Arg::Arr(self)
+    }
+}
+
 impl FuncRef {
-    pub fn call<T: ToExpr, const N: usize>(self, args: [T; N]) -> Expr {
-        let args = args.into_iter().map(|x| x.to_expr()).collect();
-        Expr::Call(self, args)
+    pub fn call<const N: usize>(self, args: [Arg; N]) -> Expr {
+        let mut exprs: Vec<Expr> = vec![];
+        for arg in args {
+            exprs.append(&mut arg.to_exprs());
+        }
+        Expr::Call(self, exprs)
+    }
+}
+
+#[macro_export]
+macro_rules! call {
+    ($func:ident($($arg:expr),*$(,)?)) => {
+        $func.call([$($arg.to_arg()),*])
     }
 }
 

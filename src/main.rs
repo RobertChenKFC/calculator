@@ -8,7 +8,6 @@ use crate::expr::{Expr, ToExpr};
 use crate::func::{Func, FuncRef};
 use crate::prog::Prog;
 use crate::reference::{Callback, Reference};
-use crate::stmt::{Stmt, ToStmt, check_, debug_, let_, return_};
+use crate::stmt::{Stmt, ToStmt, check_, let_, return_};
 
-fn main() {
-}
+fn main() {}

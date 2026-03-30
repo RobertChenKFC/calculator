@@ -1,5 +1,5 @@
 use crate::expr::{Expr, ToExpr, ValType};
-use crate::func::{Var, Arr};
+use crate::func::{Arr, Var};
 use crate::reference::CallbackRef;
 
 pub enum Stmt {
@@ -9,7 +9,7 @@ pub enum Stmt {
     AssignArr(Arr, Expr, Expr),
     Do(Expr),
     While(Expr, Vec<Stmt>),
-    Debug(&'static str, Var),
+    Debug(&'static str, Vec<Expr>),
     Check(Var, CallbackRef),
 }
 
@@ -57,8 +57,11 @@ macro_rules! while_ {
     ($cond:expr => {$($stmt:expr);*$(;)?}) => { Stmt::While(($cond).to_expr(), vec![$(($stmt).to_stmt()),*]) }
 }
 
-pub fn debug_(message: &'static str, var: Var) -> Stmt {
-    Stmt::Debug(message, var)
+#[macro_export]
+macro_rules! debug_ {
+    ($message:expr, $($exprs:expr),*$(,)?) => {
+        Stmt::Debug(($message), vec![$(($exprs).to_expr()),*])
+    }
 }
 
 pub fn check_(var: Var, callback_ref: CallbackRef) -> Stmt {
