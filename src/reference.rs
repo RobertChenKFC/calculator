@@ -4,7 +4,7 @@ use std::slice::Iter;
 use crate::expr::{Expr, ValType};
 use crate::func::{Arr, Func, NUM_VARS_PER_ARR_PTR, ToArg, Var};
 use crate::prog::Prog;
-use crate::stmt::Stmt;
+use crate::stmt::{CondBody, Stmt};
 
 pub struct Reference {
     callbacks: Vec<Box<Callback>>,
@@ -151,13 +151,15 @@ impl Reference {
                 self.stack.set_arr(arr, idx, val);
                 None
             }
-            Stmt::If(cond, body) => {
-                let cond_val = self.eval_expr(prog, cond).unwrap();
-                if cond_val != 0 {
-                    self.eval_body(prog, body.iter())
-                } else {
-                    None
+            Stmt::If(if_cond_bodies, else_body) => {
+                for if_cond_body in if_cond_bodies {
+                    let CondBody { cond, body } = if_cond_body;
+                    let cond_val = self.eval_expr(prog, cond).unwrap();
+                    if cond_val != 0 {
+                        return self.eval_body(prog, body.iter());
+                    }
                 }
+                return self.eval_body(prog, else_body.iter());
             }
             Stmt::While(cond, body) => {
                 while self.eval_expr(prog, cond).unwrap() != 0 {
@@ -273,6 +275,8 @@ impl Reference {
 
 #[cfg(test)]
 mod tests {
+    use std::env::join_paths;
+
     use super::*;
     use crate::expr::ToExpr;
     use crate::func::{FuncRef, ToArg};
@@ -530,6 +534,62 @@ mod tests {
                 let_(i, i + 1);
             });
             check_val(&mut reference, i, num_elems as i8);
+        });
+
+        reference.run(&prog);
+    }
+
+    #[test]
+    fn test_if_else() {
+        let mut reference = Reference::new();
+
+        let mut prog = Prog::new();
+        let foo_ref = prog.register_new_func();
+        let foo = prog.get_func_mut(foo_ref);
+        let x = foo.get_new_param_var();
+        let y = foo.get_new_local_var();
+        body!(foo => {
+            if_!(x.lt(1) => {
+                let_(y, 0);
+            } else if x.lt(5) => {
+                let_(y, 1);
+            } else if x.lt(10) => {
+                let_(y, 2);
+            } else => {
+                let_(y, 3);
+            });
+            return_(y);
+        });
+
+        let main_ref = prog.get_main_func_ref();
+        let main = prog.get_func_mut(main_ref);
+        let x = main.get_new_local_var();
+        let y = main.get_new_local_var();
+        body!(main => {
+            let_(x, -1);
+            let_(y, call!(foo_ref(x)));
+            check_val(&mut reference, y, 0);
+            let_(x, 0);
+            let_(y, call!(foo_ref(x)));
+            check_val(&mut reference, y, 0);
+            let_(x, 1);
+            let_(y, call!(foo_ref(x)));
+            check_val(&mut reference, y, 1);
+            let_(x, 4);
+            let_(y, call!(foo_ref(x)));
+            check_val(&mut reference, y, 1);
+            let_(x, 5);
+            let_(y, call!(foo_ref(x)));
+            check_val(&mut reference, y, 2);
+            let_(x, 9);
+            let_(y, call!(foo_ref(x)));
+            check_val(&mut reference, y, 2);
+            let_(x, 10);
+            let_(y, call!(foo_ref(x)));
+            check_val(&mut reference, y, 3);
+            let_(x, 30);
+            let_(y, call!(foo_ref(x)));
+            check_val(&mut reference, y, 3);
         });
 
         reference.run(&prog);

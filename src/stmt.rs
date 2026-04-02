@@ -2,8 +2,12 @@ use crate::expr::{Expr, ToExpr, ValType};
 use crate::func::{Arr, Var};
 use crate::reference::CallbackRef;
 
+pub struct CondBody {
+    pub cond: Expr,
+    pub body: Vec<Stmt>,
+}
 pub enum Stmt {
-    If(Expr, Vec<Stmt>),
+    If(Vec<CondBody>, Vec<Stmt>),
     Return(Expr),
     Assign(Var, Expr),
     AssignArr(Arr, Expr, Expr),
@@ -31,7 +35,16 @@ impl ToStmt for Expr {
 
 #[macro_export]
 macro_rules! if_ {
-    ($cond:expr => {$($stmt:expr);*$(;)?}) => { Stmt::If(($cond).to_expr(), vec![$($stmt),*]) }
+    (
+        $if_cond:expr => {$($if_stmt:expr);*$(;)?}
+        $(else if $elif_cond:expr => {$($elif_stmt:expr);*$(;)?})*
+        $(else => {$($else_stmt:expr);*$(;)?})?
+    ) =>
+    { Stmt::If(
+        vec![
+            CondBody { cond: ($if_cond).to_expr(), body: vec![$($if_stmt),*] },
+            $(CondBody { cond: ($elif_cond).to_expr(), body: vec![$($elif_stmt),*] }),*],
+        vec![$($($else_stmt),*)?]) }
 }
 
 pub fn return_<T: ToExpr>(expr: T) -> Stmt {
