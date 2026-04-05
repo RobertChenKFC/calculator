@@ -2,6 +2,7 @@ mod expr;
 mod func;
 mod prog;
 mod reference;
+mod seven_segment;
 mod stmt;
 
 use crate::expr::{Expr, ToExpr};

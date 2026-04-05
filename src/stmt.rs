@@ -13,6 +13,9 @@ pub enum Stmt {
     AssignArr(Arr, Expr, Expr),
     Do(Expr),
     While(Expr, Vec<Stmt>),
+    SetOutput(Expr, Expr),
+    ShowOutput,
+    CheckOutput(&'static str),
     Debug(&'static str, Vec<Expr>),
     Check(Var, CallbackRef),
 }
@@ -79,4 +82,16 @@ macro_rules! debug_ {
 
 pub fn check_(var: Var, callback_ref: CallbackRef) -> Stmt {
     Stmt::Check(var, callback_ref)
+}
+
+pub fn set_output_<T: ToExpr, U: ToExpr>(index: T, value: U) -> Stmt {
+    Stmt::SetOutput(index.to_expr(), value.to_expr())
+}
+
+pub fn show_output_() -> Stmt {
+    Stmt::ShowOutput
+}
+
+pub fn check_output_(output: &'static str) -> Stmt {
+    Stmt::CheckOutput(output)
 }

@@ -4,11 +4,13 @@ use std::slice::Iter;
 use crate::expr::{Expr, ValType};
 use crate::func::{Arr, Func, NUM_VARS_PER_ARR_PTR, ToArg, Var};
 use crate::prog::Prog;
+use crate::seven_segment::SevenSegment;
 use crate::stmt::{CondBody, Stmt};
 
 pub struct Reference {
     callbacks: Vec<Box<Callback>>,
     stack: Stack,
+    seven_segment: SevenSegment,
 }
 
 struct Stack {
@@ -96,6 +98,7 @@ impl Reference {
         Reference {
             callbacks: vec![],
             stack: Stack::new(),
+            seven_segment: SevenSegment::new(),
         }
     }
 
@@ -171,6 +174,20 @@ impl Reference {
             }
             Stmt::Do(expr) => {
                 self.eval_expr(prog, expr);
+                None
+            }
+            Stmt::SetOutput(index, value) => {
+                let index = self.eval_expr(prog, index).unwrap();
+                let value = self.eval_expr(prog, value).unwrap();
+                self.seven_segment.set_value(index as usize, value as u8);
+                None
+            }
+            Stmt::ShowOutput => {
+                println!("Output display:\n{}", self.seven_segment);
+                None
+            }
+            Stmt::CheckOutput(output) => {
+                assert_eq!(self.seven_segment.to_string(), **output);
                 None
             }
             Stmt::Debug(message, exprs) => {
@@ -280,7 +297,8 @@ mod tests {
     use super::*;
     use crate::expr::ToExpr;
     use crate::func::{FuncRef, ToArg};
-    use crate::stmt::ToStmt;
+    use crate::seven_segment::DIGITS;
+    use crate::stmt::{ToStmt, check_output_, set_output_, show_output_};
     use crate::{body, call, check_, debug_, if_, let_, return_, while_};
 
     #[test]
@@ -590,6 +608,39 @@ mod tests {
             let_(x, 30);
             let_(y, call!(foo_ref(x)));
             check_val(&mut reference, y, 3);
+        });
+
+        reference.run(&prog);
+    }
+
+    #[test]
+    fn test_output() {
+        let mut reference = Reference::new();
+
+        let mut prog = Prog::new();
+        let main = prog.get_func_mut(prog.get_main_func_ref());
+        body!(main => {
+            set_output_(0, SevenSegment::with_decimal(DIGITS[0]));
+            set_output_(1, SevenSegment::with_decimal(DIGITS[1]));
+            set_output_(2, SevenSegment::with_decimal(DIGITS[2]));
+            set_output_(3, SevenSegment::with_decimal(DIGITS[3]));
+            set_output_(4, SevenSegment::with_decimal(DIGITS[4]));
+            set_output_(5, SevenSegment::with_decimal(DIGITS[5]));
+            set_output_(6, SevenSegment::with_decimal(DIGITS[6]));
+            set_output_(7, SevenSegment::with_decimal(DIGITS[7]));
+            set_output_(8, SevenSegment::with_decimal(DIGITS[8]));
+            set_output_(9, SevenSegment::with_decimal(DIGITS[9]));
+            set_output_(10, DIGITS[10]);
+            set_output_(11, DIGITS[11]);
+            set_output_(12, DIGITS[12]);
+            set_output_(13, DIGITS[13]);
+            set_output_(14, DIGITS[14]);
+            set_output_(15, DIGITS[15]);
+            show_output_();
+            check_output_("\
+┌─┐   ╷ ╶─┐ ╶─┐ ╷ ╷ ┌─╴ ┌─╴ ╶─┐ ┌─┐ ┌─┐ ┌─┐ ╷   ┌─╴   ╷ ┌─╴ ┌─╴ 
+│ │   │ ┌─┘ ╶─┤ └─┤ └─┐ ├─┐   │ ├─┤ └─┤ ├─┤ ├─┐ │   ┌─┤ ├─╴ ├─╴ 
+└─┘.  ╵.└─╴.╶─┘.  ╵.╶─┘.└─┘.  ╵.└─┘.╶─┘.╵ ╵ └─┘ └─╴ └─┘ └─╴ ╵   ")
         });
 
         reference.run(&prog);
