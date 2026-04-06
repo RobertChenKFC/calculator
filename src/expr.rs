@@ -1,4 +1,4 @@
-use std::ops::{Add, BitAnd, Sub};
+use std::ops::{Add, BitAnd, BitOr, Sub};
 
 use crate::func::{Arr, FuncRef, Var};
 
@@ -11,12 +11,14 @@ pub enum Expr {
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),
     And(Box<Expr>, Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
     Eq(Box<Expr>, Box<Expr>),
     Neq(Box<Expr>, Box<Expr>),
     Lt(Box<Expr>, Box<Expr>),
     Le(Box<Expr>, Box<Expr>),
     Call(FuncRef, Vec<Expr>),
     Index(Arr, Box<Expr>),
+    Input,
 }
 
 pub trait ToExpr {
@@ -56,6 +58,13 @@ impl<Rhs: ToExpr> BitAnd<Rhs> for Expr {
     }
 }
 
+impl<Rhs: ToExpr> BitOr<Rhs> for Expr {
+    type Output = Expr;
+    fn bitor(self, rhs: Rhs) -> Expr {
+        Expr::Or(Box::new(self), Box::new(rhs.to_expr()))
+    }
+}
+
 impl Expr {
     pub fn eq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
         Expr::Eq(Box::new(self), Box::new(rhs.to_expr()))
@@ -69,4 +78,8 @@ impl Expr {
     pub fn le<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
         Expr::Le(Box::new(self), Box::new(rhs.to_expr()))
     }
+}
+
+pub fn input() -> Expr {
+    Expr::Input
 }
