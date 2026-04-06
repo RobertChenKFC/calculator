@@ -249,6 +249,9 @@ impl Reference {
             Expr::And(lhs, rhs) => {
                 self.eval_binary_expr(prog, lhs, rhs, |x, y| x & y)
             }
+            Expr::Or(lhs, rhs) => {
+                self.eval_binary_expr(prog, lhs, rhs, |x, y| x | y)
+            }
             Expr::Const(val) => Some(*val),
             Expr::Eq(lhs, rhs) => {
                 self.eval_binary_expr(prog, lhs, rhs, |x, y| {
@@ -292,8 +295,6 @@ impl Reference {
 
 #[cfg(test)]
 mod tests {
-    use std::env::join_paths;
-
     use super::*;
     use crate::expr::ToExpr;
     use crate::func::{FuncRef, ToArg};
