@@ -18,6 +18,7 @@ pub enum Expr {
     Le(Box<Expr>, Box<Expr>),
     Call(FuncRef, Vec<Expr>),
     Index(Arr, Box<Expr>),
+    Input,
 }
 
 pub trait ToExpr {
@@ -77,4 +78,8 @@ impl Expr {
     pub fn le<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
         Expr::Le(Box::new(self), Box::new(rhs.to_expr()))
     }
+}
+
+pub fn input() -> Expr {
+    Expr::Input
 }

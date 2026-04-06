@@ -3,14 +3,16 @@ use std::slice::Iter;
 
 use crate::expr::{Expr, ValType};
 use crate::func::{Arr, Func, NUM_VARS_PER_ARR_PTR, ToArg, Var};
+use crate::numpad::{Numpad, TermNumpad};
 use crate::prog::Prog;
 use crate::seven_segment::SevenSegment;
 use crate::stmt::{CondBody, Stmt};
 
-pub struct Reference {
+pub struct Reference<NumpadType: Numpad> {
     callbacks: Vec<Box<Callback>>,
     stack: Stack,
     seven_segment: SevenSegment,
+    numpad: NumpadType,
 }
 
 struct Stack {
@@ -93,12 +95,13 @@ pub type Callback = dyn FnMut(ValType);
 #[derive(Clone, Copy)]
 pub struct CallbackRef(usize);
 
-impl Reference {
-    pub fn new() -> Reference {
+impl<NumpadType: Numpad> Reference<NumpadType> {
+    pub fn new() -> Reference<NumpadType> {
         Reference {
             callbacks: vec![],
             stack: Stack::new(),
             seven_segment: SevenSegment::new(),
+            numpad: Numpad::new(),
         }
     }
 
@@ -289,22 +292,30 @@ impl Reference {
                 let idx = self.eval_expr(prog, idx).unwrap();
                 Some(self.stack.get_arr(arr, idx))
             }
+            Expr::Input => Some(self.numpad.get_input()),
         }
+    }
+
+    fn get_numpad_mut(&mut self) -> &mut NumpadType {
+        &mut self.numpad
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expr::ToExpr;
+    use crate::expr::{ToExpr, input};
     use crate::func::{FuncRef, ToArg};
+    use crate::numpad::{
+        KEY_ADD, KEY_ENTER, KEY_SUB, MockNumpad, Numpad, TermNumpad,
+    };
     use crate::seven_segment::DIGITS;
     use crate::stmt::{ToStmt, check_output_, set_output_, show_output_};
     use crate::{body, call, check_, debug_, if_, let_, return_, while_};
 
     #[test]
     fn test_fib() {
-        let mut reference = Reference::new();
+        let mut reference = Reference::<TermNumpad>::new();
         let mut cnt = 0;
         let num_iters = 10;
         let fib_checker = reference.register_callback(move |val| {
@@ -350,8 +361,8 @@ mod tests {
         reference.run(&prog);
     }
 
-    fn check_val(
-        reference: &mut Reference,
+    fn check_val<NumpadType: Numpad>(
+        reference: &mut Reference<NumpadType>,
         var: Var,
         expected_val: ValType,
     ) -> Stmt {
@@ -390,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_div2() {
-        let mut reference = Reference::new();
+        let mut reference = Reference::<TermNumpad>::new();
 
         let mut prog = Prog::new();
         let div2_ref = register_div2_func(&mut prog);
@@ -416,7 +427,7 @@ mod tests {
 
     #[test]
     fn test_arr() {
-        let mut reference = Reference::new();
+        let mut reference = Reference::<TermNumpad>::new();
 
         let mut idx = 0;
         let arr_checker = reference.register_callback(move |val| {
@@ -464,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_merge_sort() {
-        let mut reference = Reference::new();
+        let mut reference = Reference::<TermNumpad>::new();
 
         let mut prog = Prog::new();
         let div2_ref = register_div2_func(&mut prog);
@@ -560,7 +571,7 @@ mod tests {
 
     #[test]
     fn test_if_else() {
-        let mut reference = Reference::new();
+        let mut reference = Reference::<TermNumpad>::new();
 
         let mut prog = Prog::new();
         let foo_ref = prog.register_new_func();
@@ -616,7 +627,7 @@ mod tests {
 
     #[test]
     fn test_output() {
-        let mut reference = Reference::new();
+        let mut reference = Reference::<TermNumpad>::new();
 
         let mut prog = Prog::new();
         let main = prog.get_func_mut(prog.get_main_func_ref());
@@ -642,6 +653,39 @@ mod tests {
 ┌─┐   ╷ ╶─┐ ╶─┐ ╷ ╷ ┌─╴ ┌─╴ ╶─┐ ┌─┐ ┌─┐ ┌─┐ ╷   ┌─╴   ╷ ┌─╴ ┌─╴ 
 │ │   │ ┌─┘ ╶─┤ └─┤ └─┐ ├─┐   │ ├─┤ └─┤ ├─┤ ├─┐ │   ┌─┤ ├─╴ ├─╴ 
 └─┘.  ╵.└─╴.╶─┘.  ╵.╶─┘.└─┘.  ╵.└─┘.╶─┘.╵ ╵ └─┘ └─╴ └─┘ └─╴ ╵   ")
+        });
+
+        reference.run(&prog);
+    }
+
+    #[test]
+    fn test_numpad() {
+        let mut reference: Reference<MockNumpad> = Reference::new();
+        let numpad = reference.get_numpad_mut();
+        let expr = "+6-0-4-2-7-5+9+1+8+3=";
+        for input in expr.chars() {
+            numpad.add_input(input);
+        }
+
+        let mut prog = Prog::new();
+        let main = prog.get_func_mut(prog.get_main_func_ref());
+        let c = main.get_new_local_var();
+        let add = main.get_new_local_var();
+        let acc = main.get_new_local_var();
+        body!(main => {
+            let_(c, input());
+            let_(acc, 0);
+            while_!(c.neq(KEY_ENTER) => {
+                if_!(c.eq(KEY_ADD) | c.eq(KEY_SUB) => {
+                    let_(add, c.eq(KEY_ADD));
+                } else if add => {
+                    let_(acc, acc + c);
+                } else => {
+                    let_(acc, acc - c);
+                });
+                let_(c, input());
+            });
+            check_val(&mut reference, acc, 9);
         });
 
         reference.run(&prog);
