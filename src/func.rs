@@ -52,27 +52,6 @@ impl ToAssignStmt for ArrElem {
     }
 }
 
-impl Var {
-    pub fn eq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Eq(Box::new(Expr::Var(self)), Box::new(rhs.to_expr()))
-    }
-    pub fn neq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Neq(Box::new(Expr::Var(self)), Box::new(rhs.to_expr()))
-    }
-    pub fn lt<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Lt(Box::new(Expr::Var(self)), Box::new(rhs.to_expr()))
-    }
-    pub fn le<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Le(Box::new(Expr::Var(self)), Box::new(rhs.to_expr()))
-    }
-    pub fn gt<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Lt(Box::new(rhs.to_expr()), Box::new(Expr::Var(self)))
-    }
-    pub fn ge<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Le(Box::new(rhs.to_expr()), Box::new(Expr::Var(self)))
-    }
-}
-
 impl ToExpr for Var {
     fn to_expr(self) -> Expr {
         Expr::Var(self)

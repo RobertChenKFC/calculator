@@ -22,8 +22,32 @@ pub enum Expr {
     Input,
 }
 
-pub trait ToExpr {
+pub trait ToExpr where Self: Sized {
     fn to_expr(self) -> Expr;
+
+    fn eq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Eq(Box::new(self.to_expr()), Box::new(rhs.to_expr()))
+    }
+
+    fn neq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Neq(Box::new(self.to_expr()), Box::new(rhs.to_expr()))
+    }
+
+    fn lt<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Lt(Box::new(self.to_expr()), Box::new(rhs.to_expr()))
+    }
+
+    fn le<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Le(Box::new(self.to_expr()), Box::new(rhs.to_expr()))
+    }
+
+    fn gt<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Lt(Box::new(rhs.to_expr()), Box::new(self.to_expr()))
+    }
+
+    fn ge<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Le(Box::new(rhs.to_expr()), Box::new(self.to_expr()))
+    }
 }
 
 impl ToExpr for Expr {
@@ -74,24 +98,6 @@ impl Not for Expr {
 }
 
 impl Expr {
-    pub fn eq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Eq(Box::new(self), Box::new(rhs.to_expr()))
-    }
-    pub fn neq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Neq(Box::new(self), Box::new(rhs.to_expr()))
-    }
-    pub fn lt<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Lt(Box::new(self), Box::new(rhs.to_expr()))
-    }
-    pub fn le<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Le(Box::new(self), Box::new(rhs.to_expr()))
-    }
-    pub fn gt<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Lt(Box::new(rhs.to_expr()), Box::new(self))
-    }
-    pub fn ge<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
-        Expr::Le(Box::new(rhs.to_expr()), Box::new(self))
-    }
 }
 
 pub fn input() -> Expr {
