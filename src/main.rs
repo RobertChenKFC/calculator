@@ -1,3 +1,4 @@
+mod calc;
 mod expr;
 mod func;
 mod numpad;
