@@ -1,4 +1,4 @@
-use std::ops::{Add, BitAnd, BitOr, Sub};
+use std::ops::{Add, BitAnd, BitOr, Not, Sub};
 
 use crate::func::{Arr, FuncRef, Var};
 
@@ -12,6 +12,7 @@ pub enum Expr {
     Sub(Box<Expr>, Box<Expr>),
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
+    Not(Box<Expr>),
     Eq(Box<Expr>, Box<Expr>),
     Neq(Box<Expr>, Box<Expr>),
     Lt(Box<Expr>, Box<Expr>),
@@ -65,6 +66,13 @@ impl<Rhs: ToExpr> BitOr<Rhs> for Expr {
     }
 }
 
+impl Not for Expr {
+    type Output = Expr;
+    fn not(self) -> Expr {
+        Expr::Not(Box::new(self))
+    }
+}
+
 impl Expr {
     pub fn eq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
         Expr::Eq(Box::new(self), Box::new(rhs.to_expr()))
@@ -77,6 +85,12 @@ impl Expr {
     }
     pub fn le<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
         Expr::Le(Box::new(self), Box::new(rhs.to_expr()))
+    }
+    pub fn gt<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Lt(Box::new(rhs.to_expr()), Box::new(self))
+    }
+    pub fn ge<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Le(Box::new(rhs.to_expr()), Box::new(self))
     }
 }
 

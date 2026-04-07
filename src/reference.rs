@@ -241,6 +241,10 @@ impl<NumpadType: Numpad> Reference<NumpadType> {
         Some(eval(lhs, rhs))
     }
 
+    fn to_bool(x: bool) -> ValType {
+        if x { -1 as ValType } else { 0 }
+    }
+
     fn eval_expr(&mut self, prog: &Prog, expr: &Expr) -> Option<ValType> {
         match expr {
             Expr::Add(lhs, rhs) => {
@@ -255,28 +259,26 @@ impl<NumpadType: Numpad> Reference<NumpadType> {
             Expr::Or(lhs, rhs) => {
                 self.eval_binary_expr(prog, lhs, rhs, |x, y| x | y)
             }
+            Expr::Not(op) => Some(!self.eval_expr(prog, op).unwrap()),
             Expr::Const(val) => Some(*val),
             Expr::Eq(lhs, rhs) => {
                 self.eval_binary_expr(prog, lhs, rhs, |x, y| {
-                    if x == y { 1 } else { 0 }
+                    Self::to_bool(x == y)
                 })
             }
             Expr::Neq(lhs, rhs) => {
                 self.eval_binary_expr(prog, lhs, rhs, |x, y| {
-                    if x != y { 1 } else { 0 }
+                    Self::to_bool(x != y)
                 })
             }
-            Expr::Lt(lhs, rhs) => self.eval_binary_expr(
-                prog,
-                lhs,
-                rhs,
-                |x, y| {
-                    if x < y { 1 } else { 0 }
-                },
-            ),
+            Expr::Lt(lhs, rhs) => {
+                self.eval_binary_expr(prog, lhs, rhs, |x, y| {
+                    Self::to_bool(x < y)
+                })
+            }
             Expr::Le(lhs, rhs) => {
                 self.eval_binary_expr(prog, lhs, rhs, |x, y| {
-                    if x <= y { 1 } else { 0 }
+                    Self::to_bool(x <= y)
                 })
             }
             Expr::Var(var) => Some(self.stack.get_var(*var)),
@@ -686,6 +688,42 @@ mod tests {
                 let_(c, input());
             });
             check_val(&mut reference, acc, 9);
+        });
+
+        reference.run(&prog);
+    }
+
+    #[test]
+    fn test_boolean() {
+        let mut reference = Reference::<TermNumpad>::new();
+
+        let mut prog = Prog::new();
+
+        let indicator_ref = prog.register_new_func();
+        let indicator = prog.get_func_mut(indicator_ref);
+        let x = indicator.get_new_param_var();
+        body!(indicator => {
+            if_!(x => {
+                return_(1);
+            });
+            return_(0);
+        });
+
+        let main = prog.get_func_mut(prog.get_main_func_ref());
+        let x = main.get_new_local_var();
+        let b = main.get_new_local_var();
+        body!(main => {
+            let_(x, 3);
+            let_(b, call!(indicator_ref(x.lt(5))));
+            check_val(&mut reference, b, 1);
+            let_(b, call!(indicator_ref(x.lt(0))));
+            check_val(&mut reference, b, 0);
+            let_(b, call!(indicator_ref(x.gt(0) & x.lt(10))));
+            check_val(&mut reference, b, 1);
+            let_(b, call!(indicator_ref(!x.lt(2) & x.lt(7))));
+            check_val(&mut reference, b, 1);
+            let_(b, call!(indicator_ref(x.ge(3))));
+            check_val(&mut reference, b, 1);
         });
 
         reference.run(&prog);
