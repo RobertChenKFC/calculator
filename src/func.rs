@@ -1,4 +1,4 @@
-use std::ops::{Add, BitAnd, Sub};
+use std::ops::{Add, BitAnd, BitOr, Sub};
 use std::slice::Iter;
 
 use crate::expr::{Expr, ToExpr};
@@ -25,6 +25,13 @@ impl<Rhs: ToExpr> BitAnd<Rhs> for Var {
     type Output = Expr;
     fn bitand(self, rhs: Rhs) -> Self::Output {
         Expr::And(Box::new(Expr::Var(self)), Box::new(rhs.to_expr()))
+    }
+}
+
+impl<Rhs: ToExpr> BitOr<Rhs> for Var {
+    type Output = Expr;
+    fn bitor(self, rhs: Rhs) -> Self::Output {
+        Expr::Or(Box::new(Expr::Var(self)), Box::new(rhs.to_expr()))
     }
 }
 
@@ -57,6 +64,12 @@ impl Var {
     }
     pub fn le<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
         Expr::Le(Box::new(Expr::Var(self)), Box::new(rhs.to_expr()))
+    }
+    pub fn gt<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Lt(Box::new(rhs.to_expr()), Box::new(Expr::Var(self)))
+    }
+    pub fn ge<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
+        Expr::Le(Box::new(rhs.to_expr()), Box::new(Expr::Var(self)))
     }
 }
 
