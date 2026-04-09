@@ -1,19 +1,19 @@
-use crate::{body, let_, if_, while_};
-use crate::stmt::{Stmt, ToStmt, CondBody};
+use crate::expr::{ToExpr, ValType};
 use crate::func::FuncRef;
 use crate::prog::Prog;
-use crate::expr::{ToExpr, ValType};
+use crate::stmt::{CondBody, Stmt, ToStmt};
+use crate::{body, if_, let_, while_};
 
 struct Calc {
     // The number is stored as a big decimal of `num_digits` both before and
     // after the decimal point (ie. the total number of digits is actually
     // 2 * `num_digits`).
-    num_digits: usize
+    num_digits: usize,
 }
 
 impl Calc {
     fn new(num_digits: usize) -> Calc {
-        Calc { num_digits } 
+        Calc { num_digits }
     }
 
     fn register_display_func(&self, prog: &mut Prog) -> FuncRef {

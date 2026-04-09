@@ -22,7 +22,10 @@ pub enum Expr {
     Input,
 }
 
-pub trait ToExpr where Self: Sized {
+pub trait ToExpr
+where
+    Self: Sized,
+{
     fn to_expr(self) -> Expr;
 
     fn eq<Rhs: ToExpr>(self, rhs: Rhs) -> Expr {
@@ -97,8 +100,7 @@ impl Not for Expr {
     }
 }
 
-impl Expr {
-}
+impl Expr {}
 
 pub fn input() -> Expr {
     Expr::Input
