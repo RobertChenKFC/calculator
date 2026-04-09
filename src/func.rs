@@ -1,7 +1,8 @@
-use std::ops::{Add, BitAnd, BitOr, Sub};
+use std::ops::{Add, BitAnd, BitOr, Not, Sub};
 use std::slice::Iter;
 
 use crate::expr::{Expr, ToExpr};
+use crate::prog::Prog;
 use crate::stmt::{Stmt, ToAssignStmt};
 
 #[derive(Copy, Clone)]
@@ -32,6 +33,13 @@ impl<Rhs: ToExpr> BitOr<Rhs> for Var {
     type Output = Expr;
     fn bitor(self, rhs: Rhs) -> Self::Output {
         Expr::Or(Box::new(Expr::Var(self)), Box::new(rhs.to_expr()))
+    }
+}
+
+impl Not for Var {
+    type Output = Expr;
+    fn not(self) -> Self::Output {
+        Expr::Not(Box::new(Expr::Var(self)))
     }
 }
 
@@ -104,6 +112,10 @@ impl Func {
         self.num_params + self.num_locals
     }
 
+    pub fn get_num_params(&self) -> usize {
+        self.num_params
+    }
+
     fn get_new_var(&self) -> Var {
         Var(self.get_num_vars())
     }
@@ -147,8 +159,16 @@ impl Func {
         self.local_arrs.iter()
     }
 
-    pub fn set_body<const N: usize>(&mut self, body: [Stmt; N]) {
+    pub fn set_body_from_arr<const N: usize>(&mut self, body: [Stmt; N]) {
         self.body = body.into_iter().collect();
+    }
+
+    pub fn set_body(&mut self, body: Vec<Stmt>) {
+        self.body = body;
+    }
+
+    pub fn append_body(&mut self, mut body: Vec<Stmt>) {
+        self.body.append(&mut body);
     }
 
     pub fn get_ref(&self) -> FuncRef {
@@ -157,6 +177,12 @@ impl Func {
 
     pub fn iter<'a>(&'a self) -> Iter<'a, Stmt> {
         self.body.iter()
+    }
+
+    pub fn validate(&self, prog: &Prog) {
+        for stmt in &self.body {
+            stmt.validate(&prog, self);
+        }
     }
 }
 
@@ -212,7 +238,16 @@ macro_rules! call {
 #[macro_export]
 macro_rules! body{
     ($func:expr => {$($stmt:expr);*$(;)?}) => {
-        ($func).set_body([
+        ($func).set_body_from_arr([
+            $(($stmt).to_stmt()),*
+        ])
+    }
+}
+
+#[macro_export]
+macro_rules! append_body{
+    ($func:expr => {$($stmt:expr);*$(;)?}) => {
+        ($func).append_body(vec![
             $(($stmt).to_stmt()),*
         ])
     }

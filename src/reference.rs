@@ -6,7 +6,7 @@ use crate::func::{Arr, Func, NUM_VARS_PER_ARR_PTR, ToArg, Var};
 use crate::numpad::{Numpad, TermNumpad};
 use crate::prog::Prog;
 use crate::seven_segment::SevenSegment;
-use crate::stmt::{CondBody, Stmt};
+use crate::stmt::{CondBody, Stmt, check_};
 
 pub struct Reference<NumpadType: Numpad> {
     callbacks: Vec<Box<Callback>>,
@@ -115,6 +115,7 @@ impl<NumpadType: Numpad> Reference<NumpadType> {
     }
 
     pub fn run(&mut self, prog: &Prog) {
+        prog.validate();
         let main_func_ref = prog.get_main_func_ref();
         let main_func = prog.get_func(main_func_ref);
         self.eval_call(prog, main_func, iter::empty::<ValType>());
@@ -301,6 +302,13 @@ impl<NumpadType: Numpad> Reference<NumpadType> {
     fn get_numpad_mut(&mut self) -> &mut NumpadType {
         &mut self.numpad
     }
+
+    pub fn check_val(&mut self, var: Var, expected_val: ValType) -> Stmt {
+        let checker = self.register_callback(move |val| {
+            assert_eq!(val, expected_val);
+        });
+        check_(var, checker)
+    }
 }
 
 #[cfg(test)]
@@ -363,17 +371,6 @@ mod tests {
         reference.run(&prog);
     }
 
-    fn check_val<NumpadType: Numpad>(
-        reference: &mut Reference<NumpadType>,
-        var: Var,
-        expected_val: ValType,
-    ) -> Stmt {
-        let checker = reference.register_callback(move |val| {
-            assert_eq!(val, expected_val);
-        });
-        check_(var, checker)
-    }
-
     fn register_div2_func(prog: &mut Prog) -> FuncRef {
         let div2_ref = prog.register_new_func();
         let div2 = prog.get_func_mut(div2_ref);
@@ -415,13 +412,13 @@ mod tests {
         body!(main => {
             let_(x, 5);
             let_(y, call!(div2_ref(x)));
-            check_val(&mut reference, y, 2);
+            reference.check_val(y, 2);
             let_(x, 38);
             let_(y, call!(div2_ref(x)));
-            check_val(&mut reference, y, 19);
+            reference.check_val(y, 19);
             let_(x, -119);
             let_(y, call!(div2_ref(x)));
-            check_val(&mut reference, y, -60);
+            reference.check_val(y, -60);
         });
 
         reference.run(&prog);
@@ -469,7 +466,7 @@ mod tests {
                 check_(x, arr_checker);
                 let_(i, i + 1);
             });
-            check_val(&mut reference, i, num_elems);
+            reference.check_val(i, num_elems);
         });
 
         reference.run(&prog);
@@ -562,10 +559,10 @@ mod tests {
             while_!(i.lt(num_elems as i8) => {
                 let_(result, arr.at(i));
                 let_(result, arr.at(i).to_expr() - i);
-                check_val(&mut reference, result, 0);
+                reference.check_val(result, 0);
                 let_(i, i + 1);
             });
-            check_val(&mut reference, i, num_elems as i8);
+            reference.check_val(i, num_elems as i8);
         });
 
         reference.run(&prog);
@@ -600,28 +597,28 @@ mod tests {
         body!(main => {
             let_(x, -1);
             let_(y, call!(foo_ref(x)));
-            check_val(&mut reference, y, 0);
+            reference.check_val(y, 0);
             let_(x, 0);
             let_(y, call!(foo_ref(x)));
-            check_val(&mut reference, y, 0);
+            reference.check_val(y, 0);
             let_(x, 1);
             let_(y, call!(foo_ref(x)));
-            check_val(&mut reference, y, 1);
+            reference.check_val(y, 1);
             let_(x, 4);
             let_(y, call!(foo_ref(x)));
-            check_val(&mut reference, y, 1);
+            reference.check_val(y, 1);
             let_(x, 5);
             let_(y, call!(foo_ref(x)));
-            check_val(&mut reference, y, 2);
+            reference.check_val(y, 2);
             let_(x, 9);
             let_(y, call!(foo_ref(x)));
-            check_val(&mut reference, y, 2);
+            reference.check_val(y, 2);
             let_(x, 10);
             let_(y, call!(foo_ref(x)));
-            check_val(&mut reference, y, 3);
+            reference.check_val(y, 3);
             let_(x, 30);
             let_(y, call!(foo_ref(x)));
-            check_val(&mut reference, y, 3);
+            reference.check_val(y, 3);
         });
 
         reference.run(&prog);
@@ -684,7 +681,7 @@ mod tests {
                 });
                 let_(c, input());
             });
-            check_val(&mut reference, acc, 9);
+            reference.check_val(acc, 9);
         });
 
         reference.run(&prog);
@@ -712,15 +709,15 @@ mod tests {
         body!(main => {
             let_(x, 3);
             let_(b, call!(indicator_ref(x.lt(5))));
-            check_val(&mut reference, b, 1);
+            reference.check_val(b, 1);
             let_(b, call!(indicator_ref(x.lt(0))));
-            check_val(&mut reference, b, 0);
+            reference.check_val(b, 0);
             let_(b, call!(indicator_ref(x.gt(0) & x.lt(10))));
-            check_val(&mut reference, b, 1);
+            reference.check_val(b, 1);
             let_(b, call!(indicator_ref(!x.lt(2) & x.lt(7))));
-            check_val(&mut reference, b, 1);
+            reference.check_val(b, 1);
             let_(b, call!(indicator_ref(x.ge(3))));
-            check_val(&mut reference, b, 1);
+            reference.check_val(b, 1);
         });
 
         reference.run(&prog);

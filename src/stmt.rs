@@ -1,5 +1,6 @@
 use crate::expr::{Expr, ToExpr, ValType};
-use crate::func::{Arr, Var};
+use crate::func::{Arr, Func, Var};
+use crate::prog::Prog;
 use crate::reference::CallbackRef;
 
 pub struct CondBody {
@@ -18,6 +19,55 @@ pub enum Stmt {
     CheckOutput(&'static str),
     Debug(&'static str, Vec<Expr>),
     Check(Var, CallbackRef),
+}
+
+impl Stmt {
+    fn validate_body(body: &Vec<Stmt>, prog: &Prog, func: &Func) {
+        for stmt in body {
+            stmt.validate(prog, func);
+        }
+    }
+
+    pub fn validate(&self, prog: &Prog, func: &Func) {
+        match self {
+            Stmt::If(cond_bodies, else_body) => {
+                for cond_body in cond_bodies {
+                    cond_body.cond.validate(prog, func, self);
+                    Stmt::validate_body(&cond_body.body, prog, func);
+                }
+                Stmt::validate_body(else_body, prog, func);
+            }
+            Stmt::Return(expr) => {
+                expr.validate(prog, func, self);
+            }
+            Stmt::Assign(var, expr) => {
+                expr.validate(prog, func, self);
+            }
+            Stmt::AssignArr(var, idx, val) => {
+                idx.validate(prog, func, self);
+                val.validate(prog, func, self);
+            }
+            Stmt::Do(expr) => {
+                expr.validate(prog, func, self);
+            }
+            Stmt::While(expr, body) => {
+                expr.validate(prog, func, self);
+                Stmt::validate_body(body, prog, func);
+            }
+            Stmt::SetOutput(idx, val) => {
+                idx.validate(prog, func, self);
+                val.validate(prog, func, self);
+            }
+            Stmt::ShowOutput => {}
+            Stmt::CheckOutput(msg) => {}
+            Stmt::Debug(msg, exprs) => {
+                for expr in exprs {
+                    expr.validate(prog, func, self);
+                }
+            }
+            Stmt::Check(val, callback) => {}
+        }
+    }
 }
 
 pub trait ToStmt {
