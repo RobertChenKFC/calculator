@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Display, Error, Formatter};
 
 use crate::expr::ValType;
@@ -36,7 +37,8 @@ const fn get_bitmap<const N: usize>(bit_indices: [u8; N]) -> ValType {
     bitmap as ValType
 }
 
-pub const DIGITS: [ValType; 16] = [
+pub const RADIX: usize = 16;
+pub const DIGITS: [ValType; RADIX] = [
     get_bitmap([
         SEG_TOP,
         SEG_TOP_LEFT,
@@ -139,6 +141,27 @@ impl SevenSegment {
         }
         display_chars[bitmap]
     }
+
+    pub fn to_inline_string(&self) -> String {
+        let mut s = String::new();
+        for mut value in self.digits {
+            let has_decimal = (value >> SEG_DECIMAL) & 1 == 1;
+            if has_decimal {
+                // Clear out the SEG_DECIMAL bit.
+                value ^= 1 << SEG_DECIMAL;
+            }
+            for digit in 0..RADIX {
+                if DIGITS[digit] as u8 == value {
+                    s.push_str(&format!("{:x}", digit));
+                    break;
+                }
+            }
+            if has_decimal {
+                s.push('.');
+            }
+        }
+        s
+    }
 }
 
 impl Display for SevenSegment {
@@ -212,5 +235,48 @@ impl Display for SevenSegment {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::seven_segment;
+
+    use super::*;
+
+    fn setup() -> SevenSegment {
+        let mut seven_segment = SevenSegment::new();
+        for i in 0..16 {
+            seven_segment.set_value(
+                i,
+                if i < 10 {
+                    SevenSegment::with_decimal(DIGITS[i])
+                } else {
+                    DIGITS[i]
+                } as u8,
+            );
+        }
+        seven_segment
+    }
+
+    #[test]
+    fn test_display() {
+        let seven_segment = setup();
+        assert_eq!(
+            seven_segment.to_string(),
+            "\
+┌─┐   ╷ ╶─┐ ╶─┐ ╷ ╷ ┌─╴ ┌─╴ ╶─┐ ┌─┐ ┌─┐ ┌─┐ ╷   ┌─╴   ╷ ┌─╴ ┌─╴ 
+│ │   │ ┌─┘ ╶─┤ └─┤ └─┐ ├─┐   │ ├─┤ └─┤ ├─┤ ├─┐ │   ┌─┤ ├─╴ ├─╴ 
+└─┘.  ╵.└─╴.╶─┘.  ╵.╶─┘.└─┘.  ╵.└─┘.╶─┘.╵ ╵ └─┘ └─╴ └─┘ └─╴ ╵   "
+        );
+    }
+
+    #[test]
+    fn test_inline_string() {
+        let seven_segment = setup();
+        assert_eq!(
+            seven_segment.to_inline_string(),
+            "0.1.2.3.4.5.6.7.8.9.abcdef"
+        );
     }
 }
