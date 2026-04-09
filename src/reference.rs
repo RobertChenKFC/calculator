@@ -190,7 +190,7 @@ impl<NumpadType: Numpad> Reference<NumpadType> {
                 None
             }
             Stmt::CheckOutput(output) => {
-                assert_eq!(self.seven_segment.to_string(), **output);
+                assert_eq!(self.seven_segment.to_inline_string(), **output);
                 None
             }
             Stmt::Debug(message, exprs) => {
@@ -651,10 +651,7 @@ mod tests {
             set_output_(14, DIGITS[14]);
             set_output_(15, DIGITS[15]);
             show_output_();
-            check_output_("\
-┌─┐   ╷ ╶─┐ ╶─┐ ╷ ╷ ┌─╴ ┌─╴ ╶─┐ ┌─┐ ┌─┐ ┌─┐ ╷   ┌─╴   ╷ ┌─╴ ┌─╴ 
-│ │   │ ┌─┘ ╶─┤ └─┤ └─┐ ├─┐   │ ├─┤ └─┤ ├─┤ ├─┐ │   ┌─┤ ├─╴ ├─╴ 
-└─┘.  ╵.└─╴.╶─┘.  ╵.╶─┘.└─┘.  ╵.└─┘.╶─┘.╵ ╵ └─┘ └─╴ └─┘ └─╴ ╵   ")
+            check_output_("0.1.2.3.4.5.6.7.8.9.abcdef");
         });
 
         reference.run(&prog);
