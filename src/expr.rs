@@ -1,8 +1,12 @@
 use std::ops::{Add, BitAnd, BitOr, Not, Sub};
 
-use crate::func::{Arr, FuncRef, Var};
+use crate::func::{Arr, Func, FuncRef, Var};
+use crate::prog::Prog;
+use crate::stmt::Stmt;
 
 pub type ValType = i8;
+pub const TRUE: ValType = 0;
+pub const FALSE: ValType = -1;
 
 #[derive(Clone)]
 pub enum Expr {
@@ -100,7 +104,14 @@ impl Not for Expr {
     }
 }
 
-impl Expr {}
+impl Expr {
+    pub fn validate(&self, prog: &Prog, func: &Func, stmt: &Stmt) {
+        if let Expr::Call(func_ref, args) = self {
+            let func = prog.get_func(*func_ref);
+            assert_eq!(args.len(), func.get_num_params());
+        }
+    }
+}
 
 pub fn input() -> Expr {
     Expr::Input

@@ -3,7 +3,7 @@ use std::fmt::{Display, Error, Formatter};
 
 use crate::expr::ValType;
 
-const NUM_DIGITS: usize = 16;
+pub const NUM_DIGITS: usize = 16;
 
 // The pinout of a 7-segment display with decimal point comes
 // from this website:
@@ -25,7 +25,7 @@ const SEG_MID: u8 = 7;
 const SEG_BOTTOM_LEFT: u8 = 0;
 const SEG_BOTTOM_RIGHT: u8 = 2;
 const SEG_BOTTOM: u8 = 1;
-const SEG_DECIMAL: u8 = 3;
+pub const SEG_DECIMAL: u8 = 3;
 
 const fn get_bitmap<const N: usize>(bit_indices: [u8; N]) -> ValType {
     let mut bitmap = 0;
@@ -150,11 +150,16 @@ impl SevenSegment {
                 // Clear out the SEG_DECIMAL bit.
                 value ^= 1 << SEG_DECIMAL;
             }
-            for digit in 0..RADIX {
-                if DIGITS[digit] as u8 == value {
-                    s.push_str(&format!("{:x}", digit));
-                    break;
+            if value != 0 {
+                let mut found_digit = false;
+                for digit in 0..RADIX {
+                    if DIGITS[digit] as u8 == value {
+                        s.push_str(&format!("{:x}", digit));
+                        found_digit = true;
+                        break;
+                    }
                 }
+                assert!(found_digit);
             }
             if has_decimal {
                 s.push('.');

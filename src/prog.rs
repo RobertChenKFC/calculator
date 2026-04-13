@@ -36,4 +36,10 @@ impl Prog {
         self.funcs.push(func);
         idx
     }
+
+    pub fn validate(&self) {
+        for func in &self.funcs {
+            func.validate(self);
+        }
+    }
 }
