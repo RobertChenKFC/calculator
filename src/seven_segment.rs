@@ -26,6 +26,7 @@ const SEG_BOTTOM_LEFT: u8 = 0;
 const SEG_BOTTOM_RIGHT: u8 = 2;
 const SEG_BOTTOM: u8 = 1;
 pub const SEG_DECIMAL: u8 = 3;
+pub const SEG_MINUS: u8 = SEG_MID;
 
 const fn get_bitmap<const N: usize>(bit_indices: [u8; N]) -> ValType {
     let mut bitmap = 0;
@@ -150,6 +151,10 @@ impl SevenSegment {
                 // Clear out the SEG_DECIMAL bit.
                 value ^= 1 << SEG_DECIMAL;
             }
+            if value == 1 << SEG_MINUS {
+                s.push('-');
+                continue;
+            }
             if value != 0 {
                 let mut found_digit = false;
                 for digit in 0..RADIX {
@@ -245,13 +250,15 @@ impl Display for SevenSegment {
 
 #[cfg(test)]
 mod tests {
+    use std::array::IntoIter;
+
     use crate::seven_segment;
 
     use super::*;
 
-    fn setup() -> SevenSegment {
+    fn all_digits_in_radix() -> SevenSegment {
         let mut seven_segment = SevenSegment::new();
-        for i in 0..16 {
+        for i in 0..RADIX {
             seven_segment.set_value(
                 i,
                 if i < 10 {
@@ -264,9 +271,18 @@ mod tests {
         seven_segment
     }
 
+    fn neg_num() -> SevenSegment {
+        let mut seven_segment = SevenSegment::new();
+        seven_segment.set_value(0, 1 << SEG_MINUS);
+        for (i, digit) in (0..10).rev().enumerate() {
+            seven_segment.set_value(i + 1, DIGITS[digit] as u8);
+        }
+        seven_segment
+    }
+
     #[test]
     fn test_display() {
-        let seven_segment = setup();
+        let seven_segment = all_digits_in_radix();
         assert_eq!(
             seven_segment.to_string(),
             "\
@@ -274,14 +290,32 @@ mod tests {
 │ │   │ ┌─┘ ╶─┤ └─┤ └─┐ ├─┐   │ ├─┤ └─┤ ├─┤ ├─┐ │   ┌─┤ ├─╴ ├─╴ 
 └─┘.  ╵.└─╴.╶─┘.  ╵.╶─┘.└─┘.  ╵.└─┘.╶─┘.╵ ╵ └─┘ └─╴ └─┘ └─╴ ╵   "
         );
+        let seven_segment = neg_num();
+        // Unlike the multiline string above, Rust has some "fancy" feature that
+        // ignores the whitespace following the backslash and newline so that
+        // you can format your multiline string in a way you like without
+        // affecting the contents of the string. However, in this case, we
+        // **do** want the whitespaces on the next line, so we cannot use the
+        // backslash. Therefore, we don't use the backslash here, so we have to
+        // remove the newly included newline at the start.
+        assert_eq!(
+            seven_segment.to_string(),
+            "
+    ┌─┐ ┌─┐ ╶─┐ ┌─╴ ┌─╴ ╷ ╷ ╶─┐ ╶─┐   ╷ ┌─┐                     
+╶─╴ └─┤ ├─┤   │ ├─┐ └─┐ └─┤ ╶─┤ ┌─┘   │ │ │                     
+    ╶─┘ └─┘   ╵ └─┘ ╶─┘   ╵ ╶─┘ └─╴   ╵ └─┘                     "
+                .trim_start_matches('\n')
+        );
     }
 
     #[test]
     fn test_inline_string() {
-        let seven_segment = setup();
+        let seven_segment = all_digits_in_radix();
         assert_eq!(
             seven_segment.to_inline_string(),
             "0.1.2.3.4.5.6.7.8.9.abcdef"
         );
+        let seven_segment = neg_num();
+        assert_eq!(seven_segment.to_inline_string(), "-9876543210");
     }
 }

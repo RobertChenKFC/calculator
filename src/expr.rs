@@ -5,8 +5,8 @@ use crate::prog::Prog;
 use crate::stmt::Stmt;
 
 pub type ValType = i8;
-pub const TRUE: ValType = 0;
-pub const FALSE: ValType = -1;
+pub const TRUE: ValType = -1;
+pub const FALSE: ValType = 0;
 
 #[derive(Clone)]
 pub enum Expr {
