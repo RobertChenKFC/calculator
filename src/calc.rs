@@ -1,16 +1,18 @@
 use crate::expr::{FALSE, ToExpr, ValType};
 use crate::func::{Arr, Func, FuncRef, ToArg};
 use crate::prog::Prog;
-use crate::seven_segment::{DIGITS, NUM_DIGITS, RADIX, SEG_DECIMAL};
+use crate::seven_segment::{DIGITS, NUM_DIGITS, RADIX, SEG_DECIMAL, SEG_MINUS};
 use crate::stmt::{CondBody, Stmt, ToStmt, set_output_, show_output_};
 use crate::{append_body, body, call, debug_, if_, let_, return_, while_};
 
 const ERR_OVERFLOW: ValType = 1;
 
 struct Calc {
-    // The number is stored as a big decimal of `num_digits` both before and
-    // after the decimal point (ie. the total number of digits is actually
-    // 2 * `num_digits`).
+    // The number is stored as an array of length `2*num_digits+1`, where the
+    // elements of the array represent the following:
+    //
+    //   0   | 1 ... num_digits | num_digits+1 ... 2*num_digits
+    //  sign |   integer part   |        decimal part
     num_digits: ValType,
 }
 
@@ -22,6 +24,22 @@ struct MainFunc {
 impl Calc {
     fn new(num_digits: ValType) -> Calc {
         Calc { num_digits }
+    }
+
+    fn num_elems(&self) -> ValType {
+        self.num_digits * 2 + 1
+    }
+
+    fn sign_idx(&self) -> ValType {
+        0
+    }
+
+    fn integer_part_start_idx(&self) -> ValType {
+        1
+    }
+
+    fn decimal_part_start_idx(&self) -> ValType {
+        self.num_digits + 1
     }
 
     fn register_init_func(&self, prog: &mut Prog) -> FuncRef {
@@ -64,59 +82,80 @@ impl Calc {
         let num = display.get_new_param_arr();
         let i = display.get_new_local_var();
         let j = display.get_new_local_var();
+        let len = display.get_new_local_var();
+        let is_neg = display.get_new_local_var();
         let display_idx = display.get_new_local_var();
         let digit = display.get_new_local_var();
         body!(display => {
-            let_(i, 0);
+            let_(is_neg, num.at(self.sign_idx()));
+
+            let_(i, self.integer_part_start_idx());
             // Point `i` to the first non-zero index on the integer part. If
             // the integer part is 0, this will point to the last digit of the
             // integer part. This is because we always want to display at least
             // one digit from the integer part, otherwise we might miss the
             // decimal point because on the 7-segment display, a decimal point
             // must follow a digit.
-            while_!(i.lt(self.num_digits - 1) & num.at(i).eq(0) => {
+            while_!(i.lt(self.decimal_part_start_idx() - 1) & num.at(i).eq(0) => {
                 let_(i, i + 1);
             });
-            if_!((self.num_digits.to_expr() - i).gt(NUM_DIGITS as ValType) => {
+
+            // The integer part starts from `i` and ends at
+            // `self.decimal_part_start_idx()-1`, so we derive the integer
+            // length from this. If the number is negative, we have to increase
+            // the length by 1.
+            let_(len, self.decimal_part_start_idx().to_expr() - i);
+            if_!(is_neg => {
+                let_(len, len + 1);
+            });
+            if_!(len.gt(NUM_DIGITS as ValType) => {
                 // The integer part does not fit in the display, so we return an
                 // error.
                 return_(ERR_OVERFLOW);
             });
 
             // Point `j` to the last non-zero index.
-            let_(j, self.num_digits * 2 - 1);
+            let_(j, self.num_elems() - 1);
             while_!(j.gt(i) & num.at(j).eq(0) => {
                 let_(j, j - 1);
             });
 
-            // We would like to display digits i..=j inside the display.
-            // However, if this is longer than the display length, we need to
-            // truncate the later digits. The check above guaranteed that we
+            // Now, we make `len` to hold the number of digits (including the
+            // minus sign) we want to display.
+            let_(len, j - i + 1);
+            if_!(is_neg => {
+                let_(len, len + 1);
+            });
+            // If `len` is longer than the display length, we need to truncate the later digits. The check at the start guaranteed that we
             // will not lose digits before the decimal points if we do so.
-            if_!((j - i + 1).gt(NUM_DIGITS as ValType) => {
-                //    j - i + 1 = NUM_DIGITS
-                // => j = i + NUM_DIGITS - 1
-                let_(j, i + (NUM_DIGITS as ValType) - 1);
+            if_!(len.gt(NUM_DIGITS as ValType) => {
+                let_(len, NUM_DIGITS as ValType);
             });
 
-            // It's possible that digits i..=j are shorter than the display
-            // length. In this case, we want the digits to be right justified:
-            //    display_idx + (j - i + 1) = NUM_DIGITS
-            // => display_idx = i - j + NUM_DIGITS - 1
+            // It's possible that `len` is shorter than the display length. In this case, we want the digits to be right justified:
+            //    display_idx + len = NUM_DIGITS
+            // => display_idx = NUM_DIGITS - len
             let_(display_idx, 0);
-            while_!(display_idx.lt(i - j + (NUM_DIGITS as ValType) - 1) => {
+            while_!(display_idx.lt((NUM_DIGITS as ValType).to_expr() - len) => {
                 set_output_(display_idx, 0);
                 let_(display_idx, display_idx + 1);
             });
 
-            while_!(i.le(j) => {
+            // Display the minus sign first.
+            if_!(is_neg => {
+                set_output_(display_idx, 1 << SEG_MINUS);
+                let_(display_idx, display_idx + 1);
+            });
+
+            // Then, display the rest of the digits.
+            while_!(display_idx.lt(NUM_DIGITS as ValType) => {
                 let_(digit, digits.at(num.at(i)));
-                // The `self.num_digits - 1`-th digit is the last digit of the
+                // The `self.decimal_part_start_idx() - 1`-th digit is the last digit of the
                 // integer part. Therefore, we should add a decimal point here.
                 // However, if there are no more digits after this, then this
                 // means the result is an integer, so we don't add a decimal
                 // point in this case.
-                if_!(i.eq(self.num_digits - 1) & i.neq(j) => {
+                if_!(i.eq(self.decimal_part_start_idx() - 1) & i.neq(j) => {
                     let_(digit, digit | ((1 << SEG_DECIMAL) as ValType));
                 });
                 set_output_(display_idx, digit);
@@ -157,18 +196,35 @@ impl Calc {
 #[cfg(test)]
 mod tests {
     use crate::{
-        numpad::TermNumpad, reference::Reference, stmt::check_output_,
+        expr::TRUE, numpad::TermNumpad, reference::Reference,
+        stmt::check_output_,
     };
 
     use super::*;
 
     fn set_num(calc: &Calc, func: &mut Func, num: Arr, val: &str) {
-        // First, clear all digits in `num` to 0.
-        for i in 0..calc.num_digits * 2 {
+        // First, clear all digits in `num` to 0, and clear the sign element.
+        append_body!(func => {
+            let_(num.at(calc.sign_idx()), FALSE);
+        });
+        for i in calc.integer_part_start_idx()..calc.num_elems() {
             append_body!(func => {
                 let_(num.at(i), 0);
             });
         }
+
+        // Check if the value starts with a minus sign. If so, set the
+        // corresponding sign element. Then, remove the minus sign from the
+        // start for subsequent digit extraction.
+        let is_neg = val.starts_with("-");
+        let val = if is_neg {
+            append_body!(func => {
+                let_(num.at(calc.sign_idx()), TRUE);
+            });
+            &val[1..]
+        } else {
+            val
+        };
 
         let val: Vec<_> = val.chars().collect();
         let mut decimal_idx = 0;
@@ -178,8 +234,12 @@ mod tests {
         assert!(decimal_idx < calc.num_digits as usize);
         // Handle digits before the decimal.
         for (i, c) in val[..decimal_idx].iter().enumerate() {
-            let digit_idx =
-                calc.num_digits - (decimal_idx as ValType) + (i as ValType);
+            // i         = 0..decimal_idx-1
+            // digit_idx = x..decimal_part_start_idx-1
+            // => x = decimal_part_start_idx-decimal_idx
+            let digit_idx = calc.decimal_part_start_idx()
+                - (decimal_idx as ValType)
+                + (i as ValType);
             append_body!(func => {
                 let_(num.at(digit_idx), c.to_digit(10).unwrap() as ValType);
             });
@@ -189,7 +249,7 @@ mod tests {
         }
         // Handle digits after the decimal.
         for (i, c) in val[decimal_idx + 1..].iter().enumerate() {
-            let digit_idx = calc.num_digits + (i as ValType);
+            let digit_idx = calc.decimal_part_start_idx() + (i as ValType);
             append_body!(func => {
                 let_(num.at(digit_idx), c.to_digit(10).unwrap() as ValType);
             });
@@ -206,7 +266,7 @@ mod tests {
         let display_ref = calc.register_display_func(&mut prog);
 
         let main = prog.get_func_mut(main_func.main_ref);
-        let num = main.get_new_local_arr((calc.num_digits * 2) as usize);
+        let num = main.get_new_local_arr(calc.num_elems() as usize);
         let ret = main.get_new_local_var();
         for val in [
             "1963504782",
@@ -214,6 +274,7 @@ mod tests {
             "1274898.978123",
             "0",
             "0.123897120124781",
+            "-8160274953",
         ] {
             set_num(&calc, main, num, val);
             append_body!(main => {
