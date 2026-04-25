@@ -1,4 +1,4 @@
-use crate::expr::{FALSE, ToExpr, ValType};
+use crate::expr::{FALSE, TRUE, ToExpr, ValType};
 use crate::func::{Arr, Func, FuncRef, ToArg};
 use crate::prog::Prog;
 use crate::seven_segment::{DIGITS, NUM_DIGITS, RADIX, SEG_DECIMAL, SEG_MINUS};
@@ -83,11 +83,15 @@ impl Calc {
         let i = display.get_new_local_var();
         let j = display.get_new_local_var();
         let len = display.get_new_local_var();
-        let is_neg = display.get_new_local_var();
+        let sign_len = display.get_new_local_var();
         let display_idx = display.get_new_local_var();
         let digit = display.get_new_local_var();
         body!(display => {
-            let_(is_neg, num.at(self.sign_idx()));
+            if_!(num.at(self.sign_idx()) => {
+                let_(sign_len, 1);
+            } else => {
+                let_(sign_len, 0);
+            });
 
             let_(i, self.integer_part_start_idx());
             // Point `i` to the first non-zero index on the integer part. If
@@ -106,10 +110,7 @@ impl Calc {
             // length from this. If the number is negative, we have to increase
             // the length by 1.
             let_(len, self.decimal_part_start_idx().to_expr() - i);
-            if_!(is_neg => {
-                let_(len, len + 1);
-            });
-            if_!(len.gt(NUM_DIGITS as ValType) => {
+            if_!((len + sign_len).gt(NUM_DIGITS as ValType) => {
                 // The integer part does not fit in the display, so we return an
                 // error.
                 return_(ERR_OVERFLOW);
@@ -123,16 +124,22 @@ impl Calc {
 
             // Now, we make `len` to hold the number of digits (including the
             // minus sign) we want to display.
-            let_(len, j - i + 1);
-            if_!(is_neg => {
-                let_(len, len + 1);
-            });
+            let_(len, j - i + 1 + sign_len);
             // If `len` is longer than the display length, we need to truncate
             // the later digits. The check at the start guaranteed that we will
             // not lose digits before the decimal points if we do so.
             if_!(len.gt(NUM_DIGITS as ValType) => {
                 let_(len, NUM_DIGITS as ValType);
+                let_(j, i + (len - sign_len) - 1);
             });
+            // Note that after truncation, it's possible all the non-zero
+            // decimal digits got truncated, and now we're left with all zeros
+            // after the decimal to display. If that's the case, truncate even
+            // further so that we are left with just the integer part.
+            while_!(j.ge(self.decimal_part_start_idx()) & num.at(j).eq(0) => {
+                let_(j, j - 1);
+            });
+            let_(len, j - i + 1 + sign_len);
 
             // It's possible that `len` is shorter than the display length. In
             // this case, we want the digits to be right justified:
@@ -145,7 +152,7 @@ impl Calc {
             });
 
             // Display the minus sign first.
-            if_!(is_neg => {
+            if_!(sign_len.gt(0) => {
                 set_output_(display_idx, 1 << SEG_MINUS);
                 let_(display_idx, display_idx + 1);
             });
@@ -176,21 +183,101 @@ impl Calc {
         let add = prog.get_func_mut(add_ref);
         let num1 = add.get_new_param_arr();
         let num2 = add.get_new_param_arr();
+        let is_sub = add.get_new_param_var();
         let i = add.get_new_local_var();
         let x = add.get_new_local_var();
         let carry = add.get_new_local_var();
+        let num1_sign = add.get_new_local_var();
+        let num2_sign = add.get_new_local_var();
+        let ret = add.get_new_local_var();
         body!(add => {
-            let_(i, 0);
-            let_(carry, 0);
-            while_!(i.lt(self.num_digits * 2) => {
-                let_(x, carry + num1.at(i) + num2.at(i));
+            let_(num1_sign, num1.at(self.sign_idx()));
+            let_(num2_sign, num2.at(self.sign_idx()));
+            // We have (+/- num1) +/- (+/- num2)
+            //                    (1)  (2)
+            // In this step, we are combining (1) and (2) together into
+            // `is_sub`, and clearing out the sign element of `num2`.
+            if_!(num2_sign => {
+                let_(is_sub, !is_sub);
+                let_(num2.at(self.sign_idx()), FALSE);
+            });
+            // Now, we have (+/- num1) (+/- num2).
+            if_!(num1_sign => {
+                // - If `is_sub` is true, then we are computing -num1 - num2,
+                //   which is equivalent to -(num2 + num1).
+                // - If `is_sub` is false, then we are computing -num1 + num2,
+                //   which is equivlanet to num2 - num1.
+                // Therefore, we compute with a flipped `is_sub`, and flip back
+                // according to `is_sub`. Either way, we clear the sign element
+                // of `num1`.
+                let_(num1.at(self.sign_idx()), FALSE);
+                let_(ret, call!(add_ref(num2, num1, !is_sub)));
+                // Because we swapped `num1` and `num2`, and the result is
+                // stored in `num1`, we have to copy over the results from
+                // `num2`.
+                let_(i, 0);
+                while_!(i.lt(self.num_elems()) => {
+                    let_(num1.at(i), num2.at(i));
+                    let_(i, i + 1);
+                });
+                // Then flip the sign back.
+                if_!(is_sub => {
+                    let_(num1.at(self.sign_idx()),
+                         !num1.at(self.sign_idx()).to_expr());
+                });
+                return_(ret);
+            });
+
+            // If we get here, that means both `num1` and `num2` are >= 0, and
+            // we can proceed with addition/subtraction ignoring the signs.
+            let_(i, self.num_elems() - 1);
+            if_!(is_sub => {
+                let_(carry, 1);
+            } else => {
+                let_(carry, 0);
+            });
+            while_!(i.ge(self.integer_part_start_idx()) => {
+                let_(x, carry + num1.at(i));
+                if_!(is_sub => {
+                    // Subtraction is performed using 10's complement.
+                    let_(x, x + 9 - num2.at(i));
+                } else => {
+                    let_(x, x + num2.at(i));
+                });
                 if_!(x.ge(10) => {
                     let_(x, x - 10);
                     let_(carry, 1);
+                } else => {
+                    let_(carry, 0);
                 });
                 let_(num1.at(i), x);
-                let_(i, i + 1);
+                let_(i, i - 1);
             });
+            if_!(!is_sub & carry.eq(1) => {
+                // We were performing addition and the carry overflowed.
+                return_(ERR_OVERFLOW);
+            });
+            if_!(is_sub & carry.eq(0) => {
+                // We were performing subtraction. Since 10's complement was
+                // used, if we don't get an overflow, that means the sign of
+                // the result flipped. Therefore, we have to flip it back by
+                // performing a 10's complement on the result once again.
+                let_(i, self.num_elems() - 1);
+                let_(carry, 1);
+                while_!(i.ge(self.integer_part_start_idx()) => {
+                    let_(x, carry + 9 - num1.at(i));
+                    if_!(x.ge(10) => {
+                        let_(x, x - 10);
+                        let_(carry, 1);
+                    } else => {
+                        let_(carry, 0);
+                    });
+                    let_(num1.at(i), x);
+                    let_(i, i - 1);
+                });
+                let_(num1.at(self.sign_idx()), TRUE);
+            });
+            return_(0);
         });
         add_ref
     }
@@ -271,19 +358,69 @@ mod tests {
         let main = prog.get_func_mut(main_func.main_ref);
         let num = main.get_new_local_arr(calc.num_elems() as usize);
         let ret = main.get_new_local_var();
-        for val in [
-            "1963504782",
-            "3.14",
-            "1274898.978123",
-            "0",
-            "0.123897120124781",
-            "-8160274953",
+        for (val, reference_val) in [
+            ("1963504782", "1963504782"),
+            ("3.14", "3.14"),
+            ("1274898.978123", "1274898.978123"),
+            ("0", "0"),
+            ("0.123897120124781", "0.123897120124781"),
+            ("-8160274953", "-8160274953"),
+            ("-9283604571.27103", "-9283604571.27103"),
+            ("1234567890.0000001", "1234567890"),
         ] {
             set_num(&calc, main, num, val);
             append_body!(main => {
                 let_(ret, call!(display_ref(main_func.digits, num)));
                 reference.check_val(ret, 0);
-                check_output_(val);
+                check_output_(reference_val);
+            });
+        }
+
+        reference.run(&prog);
+    }
+
+    #[test]
+    fn test_add() {
+        let mut reference: Reference<TermNumpad> = Reference::new();
+
+        let calc = Calc::new(NUM_DIGITS as ValType);
+        let mut prog = Prog::new();
+        let main_func = calc.init_main_func(&mut prog);
+        let display_ref = calc.register_display_func(&mut prog);
+        let add_ref = calc.register_add_func(&mut prog);
+
+        let main = prog.get_func_mut(main_func.main_ref);
+        let num1 = main.get_new_local_arr(calc.num_elems() as usize);
+        let num2 = main.get_new_local_arr(calc.num_elems() as usize);
+        let ret = main.get_new_local_var();
+        for (val1, val2, result) in [
+            ("1963504782", "1348709265", "3312214047"),
+            ("900.007418129072", "77.6896211931742", "977.6970393222462"),
+            ("0.9999999999999999", "0.0000000000000001", "1"),
+            (
+                "102755.7127917481",
+                "-30.80079466390691",
+                "102724.9119970841",
+            ),
+            (
+                "-76071446731332.01",
+                "6837960.126995179",
+                "-76071439893371.8",
+            ),
+            (
+                "-286.6725402302072",
+                "-0.222565620154703",
+                "-286.895105850361",
+            ),
+        ] {
+            set_num(&calc, main, num1, val1);
+            set_num(&calc, main, num2, val2);
+            append_body!(main => {
+                let_(ret, call!(add_ref(num1, num2, /*is_sub=*/FALSE)));
+                reference.check_val(ret, 0);
+                let_(ret, call!(display_ref(main_func.digits, num1)));
+                reference.check_val(ret, 0);
+                check_output_(result);
             });
         }
 
