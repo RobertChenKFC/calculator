@@ -1,0 +1,23 @@
+// .vscode/tasks.json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Check line length",
+      "type": "shell",
+      "command": "bash scripts/check-line-length.sh",
+      "problemMatcher": {
+        "owner": "linelength",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+): (.+)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        }
+      },
+      "group": "build",
+      "presentation": { "reveal": "silent" }
+    }
+  ]
+}
