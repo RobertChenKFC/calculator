@@ -96,7 +96,10 @@ macro_rules! if_ {
     { Stmt::If(
         vec![
             CondBody { cond: ($if_cond).to_expr(), body: vec![$($if_stmt),*] },
-            $(CondBody { cond: ($elif_cond).to_expr(), body: vec![$($elif_stmt),*] }),*],
+            $(CondBody {
+                cond: ($elif_cond).to_expr(),
+                body: vec![$($elif_stmt),*]
+            }),*],
         vec![$($($else_stmt),*)?]) }
 }
 
@@ -120,7 +123,9 @@ pub fn let_<L: ToAssignStmt, R: ToExpr>(lhs: L, rhs: R) -> Stmt {
 
 #[macro_export]
 macro_rules! while_ {
-    ($cond:expr => {$($stmt:expr);*$(;)?}) => { Stmt::While(($cond).to_expr(), vec![$(($stmt).to_stmt()),*]) }
+    ($cond:expr => {$($stmt:expr);*$(;)?}) => {
+        Stmt::While(($cond).to_expr(), vec![$(($stmt).to_stmt()),*])
+    }
 }
 
 #[macro_export]

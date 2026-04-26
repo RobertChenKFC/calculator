@@ -96,7 +96,8 @@ impl Calc {
             // one digit from the integer part, otherwise we might miss the
             // decimal point because on the 7-segment display, a decimal point
             // must follow a digit.
-            while_!(i.lt(self.decimal_part_start_idx() - 1) & num.at(i).eq(0) => {
+            while_!(i.lt(self.decimal_part_start_idx() - 1) &
+                    num.at(i).eq(0) => {
                 let_(i, i + 1);
             });
 
@@ -126,13 +127,15 @@ impl Calc {
             if_!(is_neg => {
                 let_(len, len + 1);
             });
-            // If `len` is longer than the display length, we need to truncate the later digits. The check at the start guaranteed that we
-            // will not lose digits before the decimal points if we do so.
+            // If `len` is longer than the display length, we need to truncate
+            // the later digits. The check at the start guaranteed that we will
+            // not lose digits before the decimal points if we do so.
             if_!(len.gt(NUM_DIGITS as ValType) => {
                 let_(len, NUM_DIGITS as ValType);
             });
 
-            // It's possible that `len` is shorter than the display length. In this case, we want the digits to be right justified:
+            // It's possible that `len` is shorter than the display length. In
+            // this case, we want the digits to be right justified:
             //    display_idx + len = NUM_DIGITS
             // => display_idx = NUM_DIGITS - len
             let_(display_idx, 0);
@@ -150,11 +153,11 @@ impl Calc {
             // Then, display the rest of the digits.
             while_!(display_idx.lt(NUM_DIGITS as ValType) => {
                 let_(digit, digits.at(num.at(i)));
-                // The `self.decimal_part_start_idx() - 1`-th digit is the last digit of the
-                // integer part. Therefore, we should add a decimal point here.
-                // However, if there are no more digits after this, then this
-                // means the result is an integer, so we don't add a decimal
-                // point in this case.
+                // The `self.decimal_part_start_idx() - 1`-th digit is the last
+                // digit of the integer part. Therefore, we should add a decimal
+                // point here. However, if there are no more digits after this,
+                // then this means the result is an integer, so we don't add a
+                // decimal point in this case.
                 if_!(i.eq(self.decimal_part_start_idx() - 1) & i.neq(j) => {
                     let_(digit, digit | ((1 << SEG_DECIMAL) as ValType));
                 });
