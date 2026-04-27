@@ -722,4 +722,43 @@ mod tests {
 
         reference.run(&prog);
     }
+
+    #[test]
+    fn test_arrs() {
+        let mut reference = Reference::<TermNumpad>::new();
+
+        let mut prog = Prog::new();
+        let foo_ref = prog.register_new_func();
+        let foo = prog.get_func_mut(foo_ref);
+        let arr1 = foo.get_new_param_arr();
+        let arr2 = foo.get_new_param_arr();
+        let x = foo.get_new_local_var();
+        body!(foo => {
+            let_(x, arr1.at(0));
+            reference.check_val(x, 6);
+            let_(x, arr1.at(1));
+            reference.check_val(x, 5);
+            let_(x, arr1.at(2));
+            reference.check_val(x, 4);
+            let_(x, arr2.at(0));
+            reference.check_val(x, 3);
+            let_(x, arr2.at(1));
+            reference.check_val(x, 2);
+        });
+
+        let main_ref = prog.get_main_func_ref();
+        let main = prog.get_func_mut(main_ref);
+        let arr1 = main.get_new_local_arr(3);
+        let arr2 = main.get_new_local_arr(2);
+        body!(main => {
+            let_(arr1.at(0), 6);
+            let_(arr1.at(1), 5);
+            let_(arr1.at(2), 4);
+            let_(arr2.at(0), 3);
+            let_(arr2.at(1), 2);
+            call!(foo_ref(arr1, arr2));
+        });
+
+        reference.run(&prog);
+    }
 }
