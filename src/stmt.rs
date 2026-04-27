@@ -130,8 +130,8 @@ macro_rules! while_ {
 
 #[macro_export]
 macro_rules! debug_ {
-    ($message:expr, $($exprs:expr),*$(,)?) => {
-        Stmt::Debug(($message), vec![$(($exprs).to_expr()),*])
+    ($message:expr$(, $($exprs:expr),*$(,)?)?) => {
+        Stmt::Debug(($message), vec![$($(($exprs).to_expr()),*)?])
     }
 }
 

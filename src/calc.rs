@@ -1,4 +1,6 @@
-use crate::expr::{FALSE, TRUE, ToExpr, ValType};
+use std::array::IntoIter;
+
+use crate::expr::{Expr, FALSE, TRUE, ToExpr, ValType};
 use crate::func::{Arr, Func, FuncRef, ToArg};
 use crate::prog::Prog;
 use crate::seven_segment::{DIGITS, NUM_DIGITS, RADIX, SEG_DECIMAL, SEG_MINUS};
@@ -47,6 +49,10 @@ impl Calc {
         let init = prog.get_func_mut(init_ref);
 
         let digits = init.get_new_param_arr();
+
+        // `digits` is a mapping from each numerical digit to a bitmap for the
+        // seven segment display. This is basically representing the `DIGITS`
+        // array inside this DSL.
         init.set_body(
             (0..RADIX)
                 .into_iter()
@@ -281,10 +287,128 @@ impl Calc {
         });
         add_ref
     }
+
+    fn register_mul_func(&self, prog: &mut Prog) -> FuncRef {
+        let bin_mul_ref = prog.register_new_func();
+        let bin_mul = prog.get_func_mut(bin_mul_ref);
+        let x = bin_mul.get_new_param_var();
+        let y = bin_mul.get_new_param_var();
+        let z = bin_mul.get_new_local_var();
+        let mask = bin_mul.get_new_local_var();
+        body!(bin_mul => {
+            let_(mask, 1);
+            while_!(mask.neq(0) => {
+                if_!((mask & y).neq(0) => {
+                    let_(z, z + x);
+                });
+                let_(x, x + x);
+                let_(mask, mask + mask);
+            });
+            return_(z);
+        });
+
+        let mul_ref = prog.register_new_func();
+        let mul = prog.get_func_mut(mul_ref);
+        let num1 = mul.get_new_param_arr();
+        let num2 = mul.get_new_param_arr();
+        let i = mul.get_new_local_var();
+        let j = mul.get_new_local_var();
+        let k = mul.get_new_local_var();
+        let x = mul.get_new_local_var();
+        let y = mul.get_new_local_var();
+        let z = mul.get_new_local_var();
+        let carry = mul.get_new_local_var();
+        let prod = mul.get_new_local_arr((self.num_elems() * 2) as usize);
+        let sign = mul.get_new_local_var();
+        body!(mul => {
+            // Clear the product to 0.
+            let_(i, 0);
+            while_!(i.lt(self.num_elems()) => {
+                let_(prod.at(i), 0);
+                let_(i, i + 1);
+            });
+
+            let_(sign, num1.at(self.sign_idx()).neq(num2.at(self.sign_idx())));
+
+            let_(i, self.num_elems() - 1);
+            while_!(i.ge(self.integer_part_start_idx()) => {
+                let_(j, self.num_elems() - 1);
+                // When
+                //   i = self.num_elems() - 1,
+                // we want
+                //   k = self.num_elems() * 2 - 1.
+                // Therefore
+                //   k = i + (self.num_elems() * 2 - 1) - (self.num_elems() - 1)
+                //     = i + self.num_elems()
+                let_(k, i + self.num_elems());
+                let_(x, num1.at(i));
+                let_(carry, 0);
+                while_!(j.ge(self.integer_part_start_idx()) => {
+                    let_(y, num2.at(j));
+                    let_(z, carry + call!(bin_mul_ref(x, y)) + prod.at(k));
+                    let_(carry, 0);
+                    while_!(z.ge(10) => {
+                        let_(carry, carry + 1);
+                        let_(z, z - 10);
+                    });
+                    let_(prod.at(k), z);
+                    let_(j, j - 1);
+                    let_(k, k - 1);
+                });
+                if_!(carry.gt(0) => {
+                    return_(ERR_OVERFLOW);
+                });
+                let_(i, i - 1);
+            });
+
+            // Both `num1` and `num2` has
+            //   l = self.num_elems() - self.decimal_part_start_idx()
+            // number of decimal places. `prod` has a total of
+            //   m = 2 * self.num_elems()
+            // number of digits. Therefore, the integer part of `prod`
+            // starts at
+            //     m - (2 * l) - 1
+            //   = 2 * self.num_elems() - 2 * self.num_elems() +
+            //     2 * self.decimal_part_start_idx() - 1
+            //   = 2 * self.decimal_part_start_idx() - 1.
+            let_(j, 2 * self.decimal_part_start_idx() - 1);
+            // Copy over the integer part. If the integer part doesn't fit,
+            // that indicates an overflow.
+            let_(i, self.decimal_part_start_idx() - 1);
+            let_(k, j);
+            while_!(i.ge(self.integer_part_start_idx()) => {
+                let_(num1.at(i), prod.at(k));
+                let_(i, i - 1);
+                let_(k, k - 1);
+            });
+            while_!(k.ge(0) => {
+                if_!(prod.at(k).gt(0) => {
+                    return_(ERR_OVERFLOW);
+                });
+                let_(k, k - 1);
+            });
+            // Then, copy over the decimal part. The decimals that don't fit
+            // will get truncated.
+            let_(i, self.decimal_part_start_idx());
+            let_(k, j + 1);
+            while_!(i.lt(self.num_elems()) => {
+                let_(num1.at(i), prod.at(k));
+                let_(i, i + 1);
+                let_(k, k + 1);
+            });
+            // Finally, the sign element.
+            let_(num1.at(self.sign_idx()), sign);
+
+            return_(0);
+        });
+        mul_ref
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::slice::Iter;
+
     use crate::{
         expr::TRUE, numpad::TermNumpad, reference::Reference,
         stmt::check_output_,
@@ -379,8 +503,19 @@ mod tests {
         reference.run(&prog);
     }
 
-    #[test]
-    fn test_add() {
+    struct CalcFuncs {
+        add_ref: FuncRef,
+        mul_ref: FuncRef,
+        display_ref: FuncRef,
+    }
+
+    trait BinaryOpTest<const N: usize> {
+        fn apply_op(calc_funcs: &CalcFuncs, num1: Arr, num2: Arr) -> Expr;
+
+        fn test_cases() -> [(&'static str, &'static str, &'static str); N];
+    }
+
+    fn test_binary_op<const N: usize, T: BinaryOpTest<N>>() {
         let mut reference: Reference<TermNumpad> = Reference::new();
 
         let calc = Calc::new(NUM_DIGITS as ValType);
@@ -388,35 +523,22 @@ mod tests {
         let main_func = calc.init_main_func(&mut prog);
         let display_ref = calc.register_display_func(&mut prog);
         let add_ref = calc.register_add_func(&mut prog);
+        let mul_ref = calc.register_mul_func(&mut prog);
+        let calc_funcs = CalcFuncs {
+            add_ref,
+            mul_ref,
+            display_ref,
+        };
 
         let main = prog.get_func_mut(main_func.main_ref);
         let num1 = main.get_new_local_arr(calc.num_elems() as usize);
         let num2 = main.get_new_local_arr(calc.num_elems() as usize);
         let ret = main.get_new_local_var();
-        for (val1, val2, result) in [
-            ("1963504782", "1348709265", "3312214047"),
-            ("900.007418129072", "77.6896211931742", "977.6970393222462"),
-            ("0.9999999999999999", "0.0000000000000001", "1"),
-            (
-                "102755.7127917481",
-                "-30.80079466390691",
-                "102724.9119970841",
-            ),
-            (
-                "-76071446731332.01",
-                "6837960.126995179",
-                "-76071439893371.8",
-            ),
-            (
-                "-286.6725402302072",
-                "-0.222565620154703",
-                "-286.895105850361",
-            ),
-        ] {
+        for (val1, val2, result) in T::test_cases() {
             set_num(&calc, main, num1, val1);
             set_num(&calc, main, num2, val2);
             append_body!(main => {
-                let_(ret, call!(add_ref(num1, num2, /*is_sub=*/FALSE)));
+                let_(ret, T::apply_op(&calc_funcs, num1, num2));
                 reference.check_val(ret, 0);
                 let_(ret, call!(display_ref(main_func.digits, num1)));
                 reference.check_val(ret, 0);
@@ -425,5 +547,69 @@ mod tests {
         }
 
         reference.run(&prog);
+    }
+
+    struct AddTest;
+
+    impl BinaryOpTest<6> for AddTest {
+        fn apply_op(calc_funcs: &CalcFuncs, num1: Arr, num2: Arr) -> Expr {
+            let add_ref = calc_funcs.add_ref;
+            call!(add_ref(num1, num2, /*is_sub=*/ FALSE))
+        }
+
+        fn test_cases() -> [(&'static str, &'static str, &'static str); 6] {
+            [
+                ("1963504782", "1348709265", "3312214047"),
+                ("900.007418129072", "77.6896211931742", "977.6970393222462"),
+                ("0.9999999999999999", "0.0000000000000001", "1"),
+                (
+                    "102755.7127917481",
+                    "-30.80079466390691",
+                    "102724.9119970841",
+                ),
+                (
+                    "-76071446731332.01",
+                    "6837960.126995179",
+                    "-76071439893371.8",
+                ),
+                (
+                    "-286.6725402302072",
+                    "-0.222565620154703",
+                    "-286.895105850361",
+                ),
+            ]
+        }
+    }
+
+    #[test]
+    fn test_add() {
+        test_binary_op::<_, AddTest>();
+    }
+
+    struct MulTest;
+
+    impl BinaryOpTest<4> for MulTest {
+        fn apply_op(calc_funcs: &CalcFuncs, num1: Arr, num2: Arr) -> Expr {
+            let mul_ref = calc_funcs.mul_ref;
+            call!(mul_ref(num1, num2))
+        }
+
+        fn test_cases() -> [(&'static str, &'static str, &'static str); 4] {
+            [
+                ("695.23009", "65768.202", "45724032.99559818"),
+                ("-723539.034879754", "168518521.0051489", "-121929728047428"),
+                ("47839035.55863374", "-7907.12832905643", "-378269393300.41"),
+                (
+                    "-7478954.27843359",
+                    "-162.627521787840",
+                    "1216283799.866217",
+                ),
+            ]
+        }
+    }
+
+    #[test]
+    fn test_mul() {
+        test_binary_op::<_, MulTest>();
     }
 }
