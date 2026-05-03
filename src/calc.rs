@@ -8,6 +8,8 @@ use crate::stmt::{CondBody, Stmt, ToStmt, set_output_, show_output_};
 use crate::{append_body, body, call, debug_, if_, let_, return_, while_};
 
 const ERR_OVERFLOW: ValType = 1;
+const ERR_DIV_ZERO: ValType = 2;
+const ERR_INTERNAL: ValType = 3;
 
 struct Calc {
     // The number is stored as an array of length `2*num_digits+1`, where the
@@ -403,6 +405,185 @@ impl Calc {
         });
         mul_ref
     }
+
+    fn register_div_func(&self, prog: &mut Prog, add_ref: FuncRef) -> FuncRef {
+        let get_first_non_zero_idx_ref = prog.register_new_func();
+        let get_first_non_zero_idx =
+            prog.get_func_mut(get_first_non_zero_idx_ref);
+        let num = get_first_non_zero_idx.get_new_param_arr();
+        let i = get_first_non_zero_idx.get_new_local_var();
+        const INVALID_IDX: ValType = -1;
+        body!(get_first_non_zero_idx => {
+            let_(i, self.integer_part_start_idx());
+            while_!(i.lt(self.num_elems()) => {
+                if_!(num.at(i).neq(0) => {
+                    return_(i);
+                });
+                let_(i, i + 1);
+            });
+            return_(INVALID_IDX);
+        });
+
+        let shift_ref = prog.register_new_func();
+        let shift = prog.get_func_mut(shift_ref);
+        let num = shift.get_new_param_arr();
+        let shift_amount = shift.get_new_param_var();
+        let i = shift.get_new_local_var();
+        let j = shift.get_new_local_var();
+        let diff = shift.get_new_local_var();
+        body!(shift => {
+            if_!(shift_amount.gt(0) => {
+                let_(i, self.num_elems() - 1);
+                let_(diff, -1);
+            } else if shift_amount.lt(0) => {
+                // If we are shifting to the left, it's possible we will shift
+                // out of bounds, which will cause an overflow (not just a
+                // precision loss). Therefore, we should check that most
+                // significant integer digit won't get shifted out of bounds.
+                let_(i, call!(get_first_non_zero_idx_ref(num)));
+                if_!(i.eq(INVALID_IDX) => {
+                    // The number is 0, then we don't need to shift.
+                    return_(0);
+                });
+                if_!((i + shift_amount).lt(self.integer_part_start_idx()) => {
+                    return_(ERR_OVERFLOW);
+                });
+                let_(i, self.integer_part_start_idx());
+                let_(diff, 1);
+            } else => {
+                // Shift amount is 0, we don't have to do anything.
+                return_(0);
+            });
+            while_!(self.integer_part_start_idx().le(i) &
+                    i.lt(self.num_elems()) => {
+                let_(j, i - shift_amount);
+                if_!(self.integer_part_start_idx().le(j) &
+                     j.lt(self.num_elems()) => {
+                    let_(num.at(i), num.at(j));
+                } else => {
+                    let_(num.at(i), 0);
+                });
+                let_(i, i + diff);
+                // TODO: handle integer parts that get shifted OOB.
+            });
+            return_(0);
+        });
+
+        let num_lt_ref = prog.register_new_func();
+        let num_lt = prog.get_func_mut(num_lt_ref);
+        let num1 = num_lt.get_new_param_arr();
+        let num2 = num_lt.get_new_param_arr();
+        let i = num_lt.get_new_local_var();
+        let x = num_lt.get_new_local_var();
+        let y = num_lt.get_new_local_var();
+        body!(num_lt => {
+            let_(i, self.integer_part_start_idx());
+            while_!(i.lt(self.num_elems()) => {
+                let_(x, num1.at(i));
+                let_(y, num2.at(i));
+                if_!(x.lt(y) => {
+                    return_(TRUE);
+                } else if x.gt(y) => {
+                    return_(FALSE);
+                });
+                let_(i, i + 1);
+            });
+            return_(FALSE);
+        });
+
+        let div_ref = prog.register_new_func();
+        let div = prog.get_func_mut(div_ref);
+
+        let num1 = div.get_new_param_arr();
+        let num2 = div.get_new_param_arr();
+        let i = div.get_new_local_var();
+        let j = div.get_new_local_var();
+        let shift_amount = div.get_new_local_var();
+        let sign = div.get_new_local_var();
+        let result = div.get_new_local_arr(self.num_elems() as usize);
+        let cnt = div.get_new_local_var();
+        let ret = div.get_new_local_var();
+        body!(div => {
+            let_(i, call!(get_first_non_zero_idx_ref(num1)));
+            if_!(i.eq(INVALID_IDX) => {
+                // `num1` is 0, so `num1 / num2` is also 0.
+                return_(0);
+            });
+            let_(j, call!(get_first_non_zero_idx_ref(num2)));
+            if_!(j.eq(INVALID_IDX) => {
+                return_(ERR_DIV_ZERO);
+            });
+
+            // We want to shift `num1` and `num2` to the leftmost position.
+            // Therefore, we have to capture how much we shifted so that we can
+            // revert it in the result.
+            let_(i, i - self.integer_part_start_idx());
+            if_!(call!(shift_ref(num1, -i)) => {
+                debug_!("Shifting num1 by {} failed", i);
+
+                return_(ERR_INTERNAL);
+            });
+            let_(j, j - self.integer_part_start_idx());
+            if_!(call!(shift_ref(num2, -j)) => {
+                debug_!("Shifting num2 by {} failed", j);
+
+                return_(ERR_INTERNAL);
+            });
+            // Note that the first result digit will be stored at index
+            // `self.integer_part_start_idx()` to maximize the number of
+            // quotient digits we can compute. However, that digit semantically
+            // should be stored at index `self.decimal_part_start_idx() - 1`.
+            // Therefore, we have to shift the result by an additional
+            //   self.decimal_start_idx() - 1 - self.integer_part_start_idx()
+            let_(shift_amount, i - j + (
+                self.decimal_part_start_idx() - 1 -
+                self.integer_part_start_idx()));
+
+            // Record the result sign and remove the sign from `num1` and
+            // `num2` so that subtraction works correctly.
+            let_(sign, num1.at(self.sign_idx()).neq(num2.at(self.sign_idx())));
+            let_(num1.at(self.sign_idx()), FALSE);
+            let_(num2.at(self.sign_idx()), FALSE);
+
+            let_(i, self.integer_part_start_idx());
+            while_!(i.lt(self.num_elems()) => {
+                let_(cnt, 0);
+                // Keep subtracting until `num1 < num2`.
+                while_!(!call!(num_lt_ref(num1, num2)) => {
+                    if_!(call!(add_ref(num1, num2, /*is_sub=*/TRUE)).neq(0) => {
+                        return_(ERR_INTERNAL);
+                    });
+                    let_(cnt, cnt + 1);
+                });
+                // The quotient digit is simply the number of times we
+                // subtracted.
+                let_(result.at(i), cnt);
+                // Shift the denominator to the right by 1.
+                if_!(call!(shift_ref(num2, 1)).neq(0) => {
+                    return_(ERR_INTERNAL);
+                });
+                let_(i, i + 1);
+            });
+
+            // Shift the result back by the correct amount.
+            let_(ret, call!(shift_ref(result, shift_amount)));
+            if_!(ret.neq(0) => {
+                return_(ret);
+            });
+
+            // Copy the result back to `num1` and set the sign.
+            // TODO: combine this with the shift loop above.
+            let_(num1.at(self.sign_idx()), sign);
+            let_(i, self.integer_part_start_idx());
+            while_!(i.lt(self.num_elems()) => {
+                let_(num1.at(i), result.at(i));
+                let_(i, i + 1);
+            });
+            return_(0);
+        });
+
+        div_ref
+    }
 }
 
 #[cfg(test)]
@@ -506,6 +687,7 @@ mod tests {
     struct CalcFuncs {
         add_ref: FuncRef,
         mul_ref: FuncRef,
+        div_ref: FuncRef,
         display_ref: FuncRef,
     }
 
@@ -524,9 +706,11 @@ mod tests {
         let display_ref = calc.register_display_func(&mut prog);
         let add_ref = calc.register_add_func(&mut prog);
         let mul_ref = calc.register_mul_func(&mut prog);
+        let div_ref = calc.register_div_func(&mut prog, add_ref);
         let calc_funcs = CalcFuncs {
             add_ref,
             mul_ref,
+            div_ref,
             display_ref,
         };
 
@@ -611,5 +795,41 @@ mod tests {
     #[test]
     fn test_mul() {
         test_binary_op::<_, MulTest>();
+    }
+
+    struct DivTest;
+
+    impl BinaryOpTest<5> for DivTest {
+        fn apply_op(calc_funcs: &CalcFuncs, num1: Arr, num2: Arr) -> Expr {
+            let div_ref = calc_funcs.div_ref;
+            call!(div_ref(num1, num2))
+        }
+
+        fn test_cases() -> [(&'static str, &'static str, &'static str); 5] {
+            [
+                ("355", "113", "3.141592920353982"),
+                (
+                    "1560.720784157287",
+                    "123786373310.8826",
+                    "0.000000012608179",
+                ),
+                ("-7126791210823.06", "0.908518630524307", "-7844408437403.4"),
+                (
+                    "103990692195102.8",
+                    "-568.966353047428",
+                    "-182771251126.047",
+                ),
+                (
+                    "-2874192280.406020",
+                    "-53.6964113110849",
+                    "53526710.8215979",
+                ),
+            ]
+        }
+    }
+
+    #[test]
+    fn test_div() {
+        test_binary_op::<_, DivTest>();
     }
 }

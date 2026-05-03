@@ -1,4 +1,4 @@
-use std::ops::{Add, BitAnd, BitOr, Not, Sub};
+use std::ops::{Add, BitAnd, BitOr, Neg, Not, Sub};
 use std::slice::Iter;
 
 use crate::expr::{Expr, ToExpr};
@@ -40,6 +40,13 @@ impl Not for Var {
     type Output = Expr;
     fn not(self) -> Self::Output {
         Expr::Not(Box::new(Expr::Var(self)))
+    }
+}
+
+impl Neg for Var {
+    type Output = Expr;
+    fn neg(self) -> Self::Output {
+        -self.to_expr()
     }
 }
 
