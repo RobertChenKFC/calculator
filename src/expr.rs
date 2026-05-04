@@ -1,4 +1,4 @@
-use std::ops::{Add, BitAnd, BitOr, Not, Sub};
+use std::ops::{Add, BitAnd, BitOr, Neg, Not, Sub};
 
 use crate::func::{Arr, Func, FuncRef, Var};
 use crate::prog::Prog;
@@ -101,6 +101,13 @@ impl Not for Expr {
     type Output = Expr;
     fn not(self) -> Expr {
         Expr::Not(Box::new(self))
+    }
+}
+
+impl Neg for Expr {
+    type Output = Expr;
+    fn neg(self) -> Expr {
+        (0 as ValType).to_expr() - self
     }
 }
 
