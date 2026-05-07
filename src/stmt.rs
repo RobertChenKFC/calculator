@@ -95,12 +95,15 @@ macro_rules! if_ {
     ) =>
     { Stmt::If(
         vec![
-            CondBody { cond: ($if_cond).to_expr(), body: vec![$($if_stmt),*] },
+            CondBody {
+                cond: ($if_cond).to_expr(),
+                body: vec![$($if_stmt.to_stmt()),*]
+            },
             $(CondBody {
                 cond: ($elif_cond).to_expr(),
-                body: vec![$($elif_stmt),*]
+                body: vec![$($elif_stmt.to_stmt()),*]
             }),*],
-        vec![$($($else_stmt),*)?]) }
+        vec![$($($else_stmt.to_stmt()),*)?]) }
 }
 
 pub fn return_<T: ToExpr>(expr: T) -> Stmt {
