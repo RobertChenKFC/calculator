@@ -1,15 +1,32 @@
 use std::array::IntoIter;
 
-use crate::expr::{Expr, FALSE, TRUE, ToExpr, ValType};
+use crate::expr::{Expr, FALSE, TRUE, ToExpr, ValType, input};
 use crate::func::{Arr, Func, FuncRef, ToArg};
+use crate::numpad::{
+    KEY_ADD, KEY_CLR, KEY_DIV, KEY_DOT, KEY_EOF, KEY_MUL, KEY_SUB, NO_KEY,
+};
 use crate::prog::Prog;
 use crate::seven_segment::{DIGITS, NUM_DIGITS, RADIX, SEG_DECIMAL, SEG_MINUS};
 use crate::stmt::{CondBody, Stmt, ToStmt, set_output_, show_output_};
 use crate::{append_body, body, call, debug_, if_, let_, return_, while_};
 
+// Calculator error codes:
 const ERR_OVERFLOW: ValType = 1;
 const ERR_DIV_ZERO: ValType = 2;
 const ERR_INTERNAL: ValType = 3;
+
+// Calculator operations:
+const OP_ADD: ValType = 0;
+const OP_SUB: ValType = 1;
+const OP_MUL: ValType = 2;
+const OP_DIV: ValType = 3;
+
+// Calculator states:
+const STATE_APPLY_OP: ValType = 0;
+const STATE_APPEND_INTEGER: ValType = 1;
+const STATE_APPEND_DECIMAL: ValType = 2;
+const STATE_EXIT: ValType = 3;
+const STATE_DISPLAY_ERR: ValType = 4;
 
 struct Calc {
     // The number is stored as an array of length `2*num_digits+1`, where the
@@ -584,6 +601,176 @@ impl Calc {
 
         div_ref
     }
+
+    fn init_main_loop(&self, prog: &mut Prog) {
+        let add_ref = self.register_add_func(prog);
+        let mul_ref = self.register_mul_func(prog);
+        let div_ref = self.register_div_func(prog, add_ref);
+        let display_ref = self.register_display_func(prog);
+
+        let clear_ref = prog.register_new_func();
+        let clear = prog.get_func_mut(clear_ref);
+        let num = clear.get_new_param_arr();
+        let i = clear.get_new_local_var();
+        body!(clear => {
+            let_(num.at(self.sign_idx()), FALSE);
+            let_(i, self.integer_part_start_idx());
+            while_!(i.lt(self.num_elems()) => {
+                let_(num.at(i), 0);
+                let_(i, i + 1);
+            });
+        });
+
+        let append_integer_ref = prog.register_new_func();
+        let append_integer = prog.get_func_mut(append_integer_ref);
+        let num = append_integer.get_new_param_arr();
+        let digit = append_integer.get_new_param_var();
+        let i = append_integer.get_new_local_var();
+        body!(append_integer => {
+            let_(i, self.integer_part_start_idx());
+            if_!(num.at(i).neq(0) => {
+                return_(ERR_OVERFLOW);
+            });
+            let_(i, i + 1);
+            while_!(i.lt(self.decimal_part_start_idx()) => {
+                let_(num.at(i - 1), num.at(i));
+                let_(i, i + 1);
+            });
+            let_(num.at(i - 1), digit);
+            return_(0);
+        });
+
+        let apply_op_ref = prog.register_new_func();
+        let apply_op = prog.get_func_mut(apply_op_ref);
+        let op = apply_op.get_new_param_var();
+        let num1 = apply_op.get_new_param_arr();
+        let num2 = apply_op.get_new_param_arr();
+        body!(apply_op => {
+            if_!(op.eq(OP_ADD) => {
+                return_(call!(add_ref(num1, num2, /*is_sub=*/FALSE)));
+            } else if op.eq(OP_SUB) => {
+                return_(call!(add_ref(num1, num2, /*is_sub=*/TRUE)));
+            } else if op.eq(OP_MUL) => {
+                return_(call!(mul_ref(num1, num2)));
+            } else if op.eq(OP_DIV) => {
+                return_(call!(div_ref(num1, num2)));
+            } else => {
+                return_(ERR_INTERNAL);
+            });
+        });
+
+        let main_func = self.init_main_func(prog);
+        let main = prog.get_func_mut(main_func.main_ref);
+        let key = main.get_new_local_var();
+        let num1 = main.get_new_local_arr(self.num_elems() as usize);
+        let num2 = main.get_new_local_arr(self.num_elems() as usize);
+        let last_op = main.get_new_local_var();
+        let op = main.get_new_local_var();
+        let state = main.get_new_local_var();
+        let err = main.get_new_local_var();
+        let enable_main_loop = main.get_new_local_var();
+        let decimal_idx = main.get_new_local_var();
+        const APPEND_DECIMAL_IN_NEXT_ROUND: ValType = -1;
+        append_body!(main => {
+            // Calculator initialization.
+            call!(clear_ref(num1));
+            call!(clear_ref(num2));
+
+            // Since `num1` is cleared to 0, and the first time the user presses
+            // any op key, we want to "store" `num2` to `num1`, this is
+            // equivalent to adding `num2` to `num1`.
+            let_(last_op, OP_ADD);
+            let_(state, STATE_APPEND_INTEGER);
+            let_(enable_main_loop, TRUE);
+
+            call!(display_ref(main_func.digits, num2));
+            while_!(enable_main_loop => {
+                // Read until we get an actual key press.
+                let_(key, input());
+                while_!(key.eq(NO_KEY) => {
+                    let_(key, input());
+                });
+                if_!(key.eq(KEY_ADD) => {
+                    let_(op, OP_ADD);
+                    let_(state, STATE_APPLY_OP);
+                } else if key.eq(KEY_SUB) => {
+                    // TODO: implement unary neg op
+                    let_(op, OP_SUB);
+                    let_(state, STATE_APPLY_OP);
+                } else if key.eq(KEY_MUL) => {
+                    let_(op, OP_MUL);
+                    let_(state, STATE_APPLY_OP);
+                } else if key.eq(KEY_DIV) => {
+                    let_(op, OP_DIV);
+                    let_(state, STATE_APPLY_OP);
+                } else if key.eq(KEY_DOT) => {
+                    if_!(state.neq(STATE_APPEND_DECIMAL) => {
+                        // The decimal key has no effect if we already have a
+                        // decimal point. `decimal_idx` points to the current
+                        // index we should append decimal digits to. However,
+                        // since we do not want to append the dot itself, we
+                        // set `decimal_idx` to a special marker value and
+                        // update to the correct start value below.
+                        let_(state, STATE_APPEND_DECIMAL);
+                        let_(decimal_idx, APPEND_DECIMAL_IN_NEXT_ROUND);
+                    });
+                } else if key.eq(KEY_EOF) => {
+                    let_(state, STATE_EXIT);
+                } else => {
+                    // TODO: handle other keys: KEY_ENTER, KEY_CLR
+                });
+
+                // TODO: continue here
+                let_(err, 0);
+                if_!(state.eq(STATE_APPLY_OP) => {
+                    let_(err, call!(apply_op_ref(last_op, num1, num2)));
+                    let_(last_op, op);
+                    call!(clear_ref(num2));
+                } else if state.eq(STATE_APPEND_INTEGER) => {
+                    let_(err, call!(append_integer_ref(num2, key)));
+                } else if state.eq(STATE_APPEND_DECIMAL) => {
+                    if_!(decimal_idx.eq(APPEND_DECIMAL_IN_NEXT_ROUND) => {
+                        // We got the special marker value from transitioning
+                        // from appending integer to appending decimal above.
+                        // Set `decimal_idx` to the first decimal index and do
+                        // not append the digit.
+                        let_(decimal_idx, self.decimal_part_start_idx());
+                    } else if decimal_idx.lt(self.num_elems()) => {
+                        // We only append decimal digits if we have a place to
+                        // store it, otherwise the key press has no effect.
+                        let_(num2.at(decimal_idx), key);
+                        let_(decimal_idx, decimal_idx + 1);
+                    });
+                } else if state.eq(STATE_EXIT) => {
+                    let_(enable_main_loop, FALSE);
+                } else => {
+                    let_(err, ERR_INTERNAL);
+                });
+                if_!(err.neq(0) => {
+                    let_(state, STATE_DISPLAY_ERR);
+                });
+
+                if_!(state.neq(STATE_EXIT) => {
+                    // We are about to exit. Do not call display again to
+                    // prevent overwriting the last displayed content.
+                    if_!(state.eq(STATE_APPLY_OP) => {
+                        // The user just applied an operator, show the result
+                        // after applying the operator the operator (stored in
+                        // `num1`) before the user has pressed any other key.
+                        call!(display_ref(main_func.digits, num1));
+                        // Then, start taking input for the next operand.
+                        let_(state, STATE_APPEND_INTEGER);
+                    } else => {
+                        // The user is inputing a new operand, show the current
+                        // operand shown in `num2`.
+                        call!(display_ref(main_func.digits, num2));
+                    });
+                    // TODO: handle displaying error. This includes showing the
+                    // error and handling key presses in this state.
+                });
+            });
+        });
+    }
 }
 
 #[cfg(test)]
@@ -591,7 +778,9 @@ mod tests {
     use std::slice::Iter;
 
     use crate::{
-        expr::TRUE, numpad::TermNumpad, reference::Reference,
+        expr::TRUE,
+        numpad::{MockNumpad, TermNumpad},
+        reference::Reference,
         stmt::check_output_,
     };
 
@@ -831,5 +1020,34 @@ mod tests {
     #[test]
     fn test_div() {
         test_binary_op::<_, DivTest>();
+    }
+
+    #[test]
+    fn test_calc() {
+        for (input, output) in [
+            ("987$", "987"),
+            ("123.456$", "123.456"),
+            ("135.2468+$", "135.2468"),
+            ("12+34$", "34"),
+            ("56+789+$", "845"),
+            ("35-23+89-$", "101"),
+            ("14890.4219-980443+$", "-965552.5781"),
+            ("14890.4219-980443*31238.123405+$", "-30162050588.7037"),
+            ("12481023/158091+$", "78.94834620566635"),
+            ("12481023/158091+123.4125-21390*35.4+$", "-750042.426044319"),
+        ] {
+            let mut reference = Reference::<MockNumpad>::new();
+            let numpad = reference.get_numpad_mut();
+            numpad.add_input(input);
+            let calc = Calc::new(NUM_DIGITS as ValType);
+            let mut prog = Prog::new();
+            calc.init_main_loop(&mut prog);
+            let main_ref = prog.get_main_func_ref();
+            let main = prog.get_func_mut(main_ref);
+            append_body!(main => {
+                check_output_(output);
+            });
+            reference.run(&prog);
+        }
     }
 }

@@ -299,7 +299,7 @@ impl<NumpadType: Numpad> Reference<NumpadType> {
         }
     }
 
-    fn get_numpad_mut(&mut self) -> &mut NumpadType {
+    pub fn get_numpad_mut(&mut self) -> &mut NumpadType {
         &mut self.numpad
     }
 
@@ -659,9 +659,7 @@ mod tests {
         let mut reference: Reference<MockNumpad> = Reference::new();
         let numpad = reference.get_numpad_mut();
         let expr = "+6-0-4-2-7-5+9+1+8+3=";
-        for input in expr.chars() {
-            numpad.add_input(input);
-        }
+        numpad.add_input(expr);
 
         let mut prog = Prog::new();
         let main = prog.get_func_mut(prog.get_main_func_ref());

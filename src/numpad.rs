@@ -19,7 +19,8 @@ pub const KEY_DIV: ValType = 13;
 pub const KEY_DOT: ValType = 14;
 pub const KEY_CLR: ValType = 15;
 pub const KEY_ENTER: ValType = 16;
-pub const NO_KEY: ValType = 17;
+pub const KEY_EOF: ValType = 17;
+pub const NO_KEY: ValType = 18;
 
 trait KeyboardNumpad: Numpad {
     fn get_key(&mut self) -> char;
@@ -34,8 +35,10 @@ trait KeyboardNumpad: Numpad {
                 '*' => break KEY_MUL,
                 '/' => break KEY_DIV,
                 '=' => break KEY_ENTER,
+                '.' => break KEY_DOT,
                 'c' => break KEY_CLR,
-                _ => println!("Illegal numpad key: {}", c),
+                '$' => break KEY_EOF,
+                _ => panic!("Illegal numpad key: {}", c),
             }
         }
     }
@@ -65,8 +68,14 @@ pub struct MockNumpad {
 }
 
 impl MockNumpad {
-    pub fn add_input(&mut self, input: char) {
+    fn add_input_char(&mut self, input: char) {
         self.queue.push_back(input)
+    }
+
+    pub fn add_input(&mut self, input_str: &str) {
+        for c in input_str.chars() {
+            self.add_input_char(c);
+        }
     }
 }
 

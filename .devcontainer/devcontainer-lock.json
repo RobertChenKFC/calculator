@@ -1,0 +1,9 @@
+{
+  "features": {
+    "ghcr.io/eitsupi/devcontainer-features/jujutsu-cli:1": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/eitsupi/devcontainer-features/jujutsu-cli@sha256:4579ff36e81efac883be26b6bc88f1c7685ddf4a85a1ec102c315db6298d8aaf",
+      "integrity": "sha256:4579ff36e81efac883be26b6bc88f1c7685ddf4a85a1ec102c315db6298d8aaf"
+    }
+  }
+}
