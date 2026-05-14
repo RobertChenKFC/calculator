@@ -17,7 +17,14 @@
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
         "ghcr.io/eitsupi/devcontainer-features/jujutsu-cli:1": {}
-    }
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"visualjj.visualjj"
+			]
+		}
+	}
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
