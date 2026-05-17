@@ -1,0 +1,17 @@
+{
+  "folders": [
+    {
+      "name": "Compiler (Rust)",
+      "path": "compiler"
+    },
+    {
+      "name": "Root (Git/CI)",
+      "path": ".",
+    }
+  ],
+  "extensions": {
+    "recommendations": [
+      "rust-lang.rust-analyzer",
+    ]
+  }
+}

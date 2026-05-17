@@ -1,10 +1,14 @@
-name: Rust
+name: Compiler
 
 on:
   push:
     branches: [ "master" ]
+    paths:
+      - 'compiler/**'
   pull_request:
     branches: [ "master" ]
+    paths:
+      - 'compiler/**'
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,6 +17,9 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./compiler
 
     steps:
     - uses: actions/checkout@v6
