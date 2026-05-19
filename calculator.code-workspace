@@ -5,6 +5,10 @@
       "path": "compiler"
     },
     {
+      "name": "Hardware (Verilog)",
+      "path": "hardware",
+    },
+    {
       "name": "Root (Git/CI)",
       "path": ".",
     }

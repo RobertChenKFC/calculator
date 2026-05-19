@@ -1,0 +1,26 @@
+name: Hardware
+
+on:
+  push:
+    branches: [ "master" ]
+    paths:
+      - 'hardware/**'
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - 'hardware/**'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./hardware
+
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install iverilog
+      run: sudo apt-get install iverilog -y
+    - name: Run tests
+      run: make
