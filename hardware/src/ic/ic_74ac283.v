@@ -6,15 +6,13 @@ module ic_74ac283(
     input p5, // a0
     input p6, // b0
     input p7, // c_in
-    input p8, // gnd
     output p9, // c_out
     output p10, // s3
     input p11, // b3
     input p12, // a3
     output p13, // s2
     input p14, // a2
-    input p15, // b2
-    input p16 // vcc
+    input p15 // b2
 );
     wire[3:0] a;
     wire[3:0] b;
