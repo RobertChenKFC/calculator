@@ -5,6 +5,7 @@ module adder #(
 ) (
     input[WIDTH-1:0] x,
     input[WIDTH-1:0] y,
+    input c_in,
     output[WIDTH-1:0] z
 );
     wire c_out_low;
@@ -15,7 +16,7 @@ module adder #(
         .p4(z[0]), // s0
         .p5(x[0]), // a0
         .p6(y[0]), // b0
-        .p7(1'b0), // c_in
+        .p7(c_in), // c_in
         .p9(c_out_low), // c_out
         .p10(z[3]), // s3
         .p11(y[3]), // b3
