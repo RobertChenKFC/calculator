@@ -25,20 +25,17 @@ module ic_74ac283_tb;
 
     integer i;
     integer j;
-    integer k;
     initial begin
         for (i = 0; i < 16; i = i + 1) begin
             for (j = 0; j < 16; j = j + 1) begin
-                for (k = 0; k < 2; k = k + 1) begin
-                    a = i;
-                    b = j;
-                    #10
-                    if (y !== expected) begin
-                        $display(
-                                "FAIL: %d ^ %d, expected %d, got %d (%b)",
-                                a, b, expected, y, y);
-                        $fatal(1);
-                    end
+                a = i;
+                b = j;
+                #10
+                if (y !== expected) begin
+                    $display(
+                            "FAIL: %d ^ %d, expected %d, got %d (%b)",
+                            a, b, expected, y, y);
+                    $fatal(1);
                 end
             end
         end
