@@ -1,8 +1,8 @@
 `include "src/alu/adder.v"
-`include "src/alu/mux_2to1.v"
 `include "src/alu/parallel_and.v"
 `include "src/alu/parallel_or.v"
 `include "src/alu/parallel_xor.v"
+`include "src/common/mux_2to1.v"
 
 module alu #(
     parameter WIDTH=8
