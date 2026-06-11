@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 `include "src/ic/ic_74ac08.v"
 
-module ic_74ac283_tb;
+module ic_74ac08_tb;
     reg [3:0] a;
     reg [3:0] b;
     wire [3:0] y;
@@ -29,16 +29,14 @@ module ic_74ac283_tb;
     initial begin
         for (i = 0; i < 16; i = i + 1) begin
             for (j = 0; j < 16; j = j + 1) begin
-                for (k = 0; k < 2; k = k + 1) begin
-                    a = i;
-                    b = j;
-                    #9
-                    if (y !== expected) begin
-                        $display(
-                                "FAIL: %d & %d, expected %d, got %d (%b)",
-                                a, b, expected, y, y);
-                        $fatal(1);
-                    end
+                a = i;
+                b = j;
+                #9
+                if (y !== expected) begin
+                    $display(
+                            "FAIL: %d & %d, expected %d, got %d (%b)",
+                            a, b, expected, y, y);
+                    $fatal(1);
                 end
             end
         end
