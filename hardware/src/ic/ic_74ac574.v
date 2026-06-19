@@ -105,3 +105,5 @@ module ic_74ac574(
 
     assign #`DELAY out = not_oe ? 8'bz : data;
 endmodule
+
+`undef DELAY

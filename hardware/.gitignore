@@ -3,3 +3,4 @@
 *.d.tmp
 */__pycache__/*
 */.pytest_cache/*
+src/**/*_delay.v

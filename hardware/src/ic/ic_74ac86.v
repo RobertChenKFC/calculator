@@ -35,3 +35,5 @@ module ic_74ac86(
     assign #`DELAY y = a ^ b;
     assign {p3, p6, p8, p11} = y;
 endmodule
+
+`undef DELAY

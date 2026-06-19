@@ -23,6 +23,7 @@
 		"vscode": {
 			"extensions": [
 				"mshr-h.VerilogHDL",
+				"ms-python.python",
 				"ms-vscode.makefile-tools",
 				"visualjj.visualjj"
 			]

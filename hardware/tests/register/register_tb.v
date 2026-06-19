@@ -1,6 +1,7 @@
 `timescale 1ns/1ps
 `define TEST_TIMING
 `include "src/register/register.v"
+`include "src/register/register_delay.v"
 
 module register_tb;
     localparam WIDTH = 8;
@@ -36,7 +37,7 @@ module register_tb;
             end
             #5 // pulse width - setup time
             clk = 1;
-            #11 // max(hold time, propagation delay)
+            #`DELAY // max(hold time, propagation delay)
             #0
             // This checks that after sufficient time, the register value
             // changes according to the input.
@@ -50,7 +51,7 @@ module register_tb;
         end
 
         not_oe = 1'b1;
-        #11
+        #`DELAY
         #0
         if (actual !== {WIDTH{1'bz}}) begin
             $display("FAIL: output disabled: expected z, got %d", actual);

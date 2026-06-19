@@ -46,9 +46,12 @@ module register_file #(
     wire[IDX_WIDTH-1:0] rs_indices[1:0];
     assign rs_indices[0] = rs0_idx;
     assign rs_indices[1] = rs1_idx;
-    wire[WIDTH-1:0] outs[1:0];
-    assign out0 = outs[0];
-    assign out1 = outs[1];
+    // We have to use a flattened vector instead of an array of vectors because
+    // of the "Yosys array bug", see this report for more detail:
+    // https://docs.google.com/document/d/1rTGmMuzfI23QpsAkw8GNdFL6gcjZ3_RabjpzuoBNSwI/edit?tab=t.hzy92lfg5c3r 
+    wire[2*WIDTH-1:0] outs;
+    assign out0 = outs[0+:WIDTH];
+    assign out1 = outs[WIDTH+:WIDTH];
     for (pair_idx = 0; pair_idx < 2; pair_idx = pair_idx + 1) begin
         // Here, we use a pair of duplicate registers that gets written the same
         // value for each register index. Therefore, they are connected to the
@@ -67,7 +70,7 @@ module register_file #(
                 .clk(reg_clks[reg_idx]),
                 .not_oe(not_oes[reg_idx]),
                 .in(in),
-                .out(outs[pair_idx])
+                .out(outs[pair_idx*WIDTH+:WIDTH])
             );
         end
     end

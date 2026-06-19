@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 `include "src/alu/parallel_or.v"
+`include "src/alu/parallel_or_delay.v"
 
 module parallel_or_tb;
     localparam WIDTH = 8;
@@ -21,7 +22,8 @@ module parallel_or_tb;
             for (j = 0; j < 256; j = j + 1) begin
                 x = i;
                 y = j;
-                #10
+                #`DELAY
+                #0
                 if (actual !== expected) begin
                     $display(
                             "FAIL: %d | %d, expected %d, got %d (%b)",
