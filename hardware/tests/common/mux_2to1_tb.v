@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-`include "src/alu/mux_2to1.v"
+`include "src/common/mux_2to1.v"
 
 module mux_2to1_tb;
     localparam WIDTH = 8;
