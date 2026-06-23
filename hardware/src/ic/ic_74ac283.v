@@ -1,3 +1,15 @@
+`include "src/ic/delay.v"
+
+// Datasheet: https://www.ti.com/lit/ds/symlink/cd74act283.pdf?ts=1779756255166
+// Propagation delay for 5V, operating temperature -40C to 85C:
+// - a_n/b_n to c_out, c_in to s_n, c_in to c_out: 16 ns
+// - a_b/b_n to s_n: 16.5 ns
+// max(16, 16.5) = 16.5 ns.
+`define DELAY 16.5
+
+(* groups = {"((('p2', 'p3', 'p5', 'p6', 'p7', 'p11', 'p12', 'p14', 'p15'), ",
+             "  ('p1', 'p4', 'p9', 'p10', 'p13')),)"} *)
+`DEF_DELAY_ATTR
 module ic_74ac283(
     output p1, // s1
     input p2, // b1
@@ -19,11 +31,6 @@ module ic_74ac283(
     wire[4:0] s;
     assign a = {p12, p14, p3, p5};
     assign b = {p11, p15, p2, p6};
-    // Datasheet: https://www.ti.com/lit/ds/symlink/cd74act283.pdf?ts=1779756255166
-    // Propagation delay for 5V, operating temperature -40C to 85C:
-    // - a_n/b_n to c_out, c_in to s_n, c_in to c_out: 16 ns
-    // - a_b/b_n to s_n: 16.5 ns
-    // max(16, 16.5) = 16.5.
-    assign #16.5 s = a + b + p7;
+    assign #`DELAY s = a + b + p7;
     assign {p9, p10, p13, p1, p4} = s;
 endmodule
