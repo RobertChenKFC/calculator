@@ -1,3 +1,5 @@
 *.vvp
 *.d
 *.d.tmp
+*/__pycache__/*
+*/.pytest_cache/*

@@ -1,3 +1,18 @@
+`include "src/ic/delay.v"
+
+// Datasheet: https://www.ti.com/lit/ds/symlink/cd74ac157.pdf
+// Propagation delay for 5V, operating temperature -40C to 85C:
+// A, B -> Y: max(7.7, 7.7) = 7.7 ns.
+// !A/B -> Y: max(13.2, 13.2) = 13.2 ns.
+// !G -> Y: max(12.3, 12.3) = 12.3 ns.
+// max(7.7, 13.2, 12.3) = 13.2.
+`define DELAY 13.2
+
+(* groups = {"((('p1', 'p15', 'p2', 'p3'), ('p4',)),",
+             " (('p1', 'p15', 'p5', 'p6'), ('p7',)),",
+             " (('p1', 'p15', 'p11', 'p10'), ('p9',)),",
+             " (('p1', 'p15', 'p14', 'p13'), ('p12',)))"} *)
+`DEF_DELAY_ATTR
 module ic_74ac157(
     input p1, // !A/B
     input p2, // 1A
@@ -14,24 +29,12 @@ module ic_74ac157(
     input p14, // 4A
     input p15 // !G
 );
-    // Datasheet: https://www.ti.com/lit/ds/symlink/cd74ac157.pdf
-    // Propagation delay for 5V, operating temperature -40C to 85C:
-    // - A or B to Y, t_PLH: 7.7 ns
-    // - A or B to Y, t_PHL: 7.7 ns
-    // - !A/B to Y, t_PLH: 13.2 ns
-    // - !A/B to Y, t_PHL: 13.2 ns
-    // - !G to Y, t_PLH: 12.3 ns
-    // - !G to Y, t_PHL: 12.3 ns
-    // Note that we do not include the propagation delay of !G in the
-    // calculation, because we are not expected to use that input (we will
-    // permanently tie that to low).
-    // max(7.7, 7.7, 13.2, 13.2) = 13.2.
     wire[3:0] a;
     wire[3:0] b;
     wire[3:0] y;
 
-    assign a = {p2, p5, p11, p14};
-    assign b = {p3, p6, p10, p13};
-    assign #13.2 y = p15 ? 4'b0 : (p1 ? b : a);
-    assign {p4, p7, p9, p12} = y;
+    assign a = {p14, p11, p5, p2};
+    assign b = {p13, p10, p6, p3};
+    assign #`DELAY y = p15 ? 4'b0 : (p1 ? b : a);
+    assign {p12, p9, p7, p4} = y;
 endmodule

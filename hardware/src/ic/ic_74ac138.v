@@ -1,3 +1,17 @@
+`include "src/ic/delay.v"
+
+// Datasheet: https://www.ti.com/lit/ds/symlink/cd74ac138.pdf
+// Propagation delay for 5V, operating temperature around 25C:
+// A, B, C -> Y: max(10, 10) = 10 ns.
+// G1 -> Y: max(10, 10) = 10 ns.
+// !G2A, !G2B -> Y: max(9.1, 9.1) = 9.1 ns.
+// max(10, 10, 9.1) = 10 ns.
+`define DELAY 10
+
+(* groups = {"((",
+        "('p1', 'p2', 'p3', 'p4', 'p5', 'p6'), ",
+        "('p7', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15')),)"} *)
+`DEF_DELAY_ATTR
 module ic_74ac138(
     input p1, // A
     input p2, // B
@@ -14,19 +28,15 @@ module ic_74ac138(
     output p14, // Y1
     output p15 // Y0
 );
-    // Datasheet: https://www.ti.com/lit/ds/symlink/cd74ac138.pdf
-    // Propagation delay for 5V, -40C to 85C:
-    // max(10, 10, 10, 10, 9.1, 9.1) = 10 ns;
-    localparam DELAY = 10;
 
     wire not_enable;
     assign not_enable = !p6 | p4 | p5;
-    assign #DELAY p15 = p3 | p2 | p1 | not_enable;
-    assign #DELAY p14 = p3 | p2 | !p1 | not_enable;
-    assign #DELAY p13 = p3 | !p2 | p1 | not_enable;
-    assign #DELAY p12 = p3 | !p2 | !p1 | not_enable;
-    assign #DELAY p11 = !p3 | p2 | p1 | not_enable;
-    assign #DELAY p10 = !p3 | p2 | !p1 | not_enable;
-    assign #DELAY p9 = !p3 | !p2 | p1 | not_enable;
-    assign #DELAY p7 = !p3 | !p2 | !p1 | not_enable;
+    assign #`DELAY p15 = p3 | p2 | p1 | not_enable;
+    assign #`DELAY p14 = p3 | p2 | !p1 | not_enable;
+    assign #`DELAY p13 = p3 | !p2 | p1 | not_enable;
+    assign #`DELAY p12 = p3 | !p2 | !p1 | not_enable;
+    assign #`DELAY p11 = !p3 | p2 | p1 | not_enable;
+    assign #`DELAY p10 = !p3 | p2 | !p1 | not_enable;
+    assign #`DELAY p9 = !p3 | !p2 | p1 | not_enable;
+    assign #`DELAY p7 = !p3 | !p2 | !p1 | not_enable;
 endmodule

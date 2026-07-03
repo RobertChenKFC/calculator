@@ -1,3 +1,16 @@
+`include "src/ic/delay.v"
+
+// Datasheet: https://www.ti.com/lit/ds/symlink/sn74ac574.pdf
+// 5V, 25C:
+// - Pulse duration: 5 ns
+// - Setup time: 2 ns
+// - Hold time: 1.5 ns
+// - Propagation delay: max(11, 9.5, 9, 9, 10, 8.5) = 11 ms.
+`define DELAY 11
+
+(* groups = {"((('p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p11'),",
+             "  ('p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19')),)"} *)
+`DEF_DELAY_ATTR
 module ic_74ac574(
     input p1, // !OE
     input p2, // 1D
@@ -37,23 +50,19 @@ module ic_74ac574(
     wire not_oe;
     reg[7:0] data;
 
-    // Datasheet: https://www.ti.com/lit/ds/symlink/sn74ac574.pdf
-    // 5V, 25C:
-    // - Pulse duration: 5 ns
-    // - Setup time: 2 ns
-    // - Hold time: 1.5 ns
-    // - Propagation delay: max(11, 9.5, 9, 9, 10, 8.5) = 11 ms.
-
     assign in = {p2, p3, p4, p5, p6, p7, p8, p9};
     assign {p19, p18, p17, p16, p15, p14, p13, p12} = out;
     assign clk = p11;
     assign not_oe = p1;
 
+`ifndef SYNTHESIS
     realtime clk_start;
     realtime in_start;
+`endif
 
     always @(posedge clk) begin
         data <= in;
+`ifndef SYNTHESIS
         clk_start = $realtime;
         if (clk_start - in_start < 2) begin
 `ifdef TEST_TIMING
@@ -64,8 +73,10 @@ module ic_74ac574(
             $fatal(1);
 `endif
         end
+`endif
     end
 
+`ifndef SYNTHESIS
     always @(negedge clk) begin
         if (clk_start > 0 && $realtime - clk_start < 5) begin
 `ifdef TEST_TIMING
@@ -90,6 +101,7 @@ module ic_74ac574(
         end
         in_start = $realtime;
     end
+`endif
 
-    assign #11 out = not_oe ? 8'bz : data;
+    assign #`DELAY out = not_oe ? 8'bz : data;
 endmodule

@@ -13,7 +13,7 @@ $(TESTS): %.test: %.vvp
 	vvp $<
 
 $(VVP): %.vvp: %.v
-	iverilog -M $*.d.tmp -o $@ $<
+	iverilog -M $*.d.tmp -o $@ src/strict.v $<
 	@# Reformat the file list into a make rule
 	@echo "$@: $$(tr '\n' ' ' < $*.d.tmp)" > $*.d
 	@rm $*.d.tmp
