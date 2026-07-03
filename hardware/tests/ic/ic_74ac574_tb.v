@@ -1,6 +1,7 @@
 `timescale 1ns/1ps
 `define TEST_TIMING
 `include "src/ic/ic_74ac574.v"
+`include "src/ic/ic_74ac574_delay.v"
 
 `define CHECK_TIMING(uut, field, expected) \
   if (uut.field !== (expected)) begin \

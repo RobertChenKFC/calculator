@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 `include "src/ic/ic_74ac08.v"
+`include "src/ic/ic_74ac08_delay.v"
 
 module ic_74ac08_tb;
     reg [3:0] a;
@@ -31,7 +32,8 @@ module ic_74ac08_tb;
             for (j = 0; j < 16; j = j + 1) begin
                 a = i;
                 b = j;
-                #9
+                #`DELAY
+                #0
                 if (y !== expected) begin
                     $display(
                             "FAIL: %d & %d, expected %d, got %d (%b)",

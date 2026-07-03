@@ -38,3 +38,5 @@ module ic_74ac157(
     assign #`DELAY y = p15 ? 4'b0 : (p1 ? b : a);
     assign {p12, p9, p7, p4} = y;
 endmodule
+
+`undef DELAY

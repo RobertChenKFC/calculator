@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 `include "src/alu/alu.v"
+`include "src/alu/alu_delay.v"
 
 `define WIDTH 8
 `define IS_VALID(expected, actual) \
@@ -17,8 +18,6 @@ module alu_tb;
     localparam ADD_CIN = 3;
     localparam SELECT_ADD_LOGIC = 4;
     localparam SELECT_AND_OR = 5;
-
-    localparam DELAY = 69;
 
     reg [31:0] seed;
     reg [31:0] dummy;
@@ -61,7 +60,8 @@ module alu_tb;
                 flags[ADD_CIN] = 1'b0;
                 flags[SELECT_ADD_LOGIC] = 1'b0;
                 expected = imm;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: imm, expected %d, got %d (%b)",
@@ -84,7 +84,8 @@ module alu_tb;
                 flags[ADD_CIN] = 1'b0;
                 flags[SELECT_ADD_LOGIC] = 1'b0;
                 expected = rs0 + rs1;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: %d + %d, expected %d, got %d (%b)",
@@ -106,7 +107,8 @@ module alu_tb;
                 flags[ADD_CIN] = 1'b0;
                 flags[SELECT_ADD_LOGIC] = 1'b0;
                 expected = rs0 + imm;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: %d + %d, expected %d, got %d (%b)",
@@ -129,7 +131,8 @@ module alu_tb;
                 flags[ADD_CIN] = 1'b1;
                 flags[SELECT_ADD_LOGIC] = 1'b0;
                 expected = rs0 - rs1;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: %d + %d, expected %d, got %d (%b)",
@@ -152,7 +155,8 @@ module alu_tb;
                 flags[ADD_CIN] = 1'b0;
                 flags[SELECT_ADD_LOGIC] = 1'b0;
                 expected = ~rs1;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: ~%d, expected %d, got %d (%b)",
@@ -175,7 +179,8 @@ module alu_tb;
                 flags[SELECT_ADD_LOGIC] = 1'b1;
                 flags[SELECT_AND_OR] = 1'b0;
                 expected = rs0 & rs1;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: %d & %d, expected %d, got %d (%b)",
@@ -197,7 +202,8 @@ module alu_tb;
                 flags[SELECT_ADD_LOGIC] = 1'b1;
                 flags[SELECT_AND_OR] = 1'b0;
                 expected = rs0 & imm;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: %d & %d, expected %d, got %d (%b)",
@@ -207,7 +213,7 @@ module alu_tb;
             end
         end
 
-        // Test 7: rs0 | rs1
+        // Test 8: rs0 | rs1
         for (i = 0; i < NUM_RAND_INPUTS; i = i + 1) begin
             for (j = 0; j < (1 << NUM_FLAGS); j = j + 1) begin
                 rs0 = $random & {WIDTH{1'b1}};
@@ -220,7 +226,8 @@ module alu_tb;
                 flags[SELECT_ADD_LOGIC] = 1'b1;
                 flags[SELECT_AND_OR] = 1'b1;
                 expected = rs0 | rs1;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: %d | %d, expected %d, got %d (%b)",
@@ -230,7 +237,7 @@ module alu_tb;
             end
         end
 
-        // Test 7: rs0 & imm
+        // Test 9: rs0 & imm
         for (i = 0; i < NUM_RAND_INPUTS; i = i + 1) begin
             for (j = 0; j < (1 << NUM_FLAGS); j = j + 1) begin
                 rs0 = $random & {WIDTH{1'b1}};
@@ -242,7 +249,8 @@ module alu_tb;
                 flags[SELECT_ADD_LOGIC] = 1'b1;
                 flags[SELECT_AND_OR] = 1'b1;
                 expected = rs0 | imm;
-                #DELAY
+                #`DELAY
+                #0
                 if (!`IS_VALID(expected, actual)) begin
                     $display(
                             "FAIL: %d | %d, expected %d, got %d (%b)",

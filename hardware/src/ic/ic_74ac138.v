@@ -40,3 +40,5 @@ module ic_74ac138(
     assign #`DELAY p9 = !p3 | !p2 | p1 | not_enable;
     assign #`DELAY p7 = !p3 | !p2 | !p1 | not_enable;
 endmodule
+
+`undef DELAY

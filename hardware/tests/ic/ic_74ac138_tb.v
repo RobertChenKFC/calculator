@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 `include "src/ic/ic_74ac138.v"
+`include "src/ic/ic_74ac138_delay.v"
 
 module ic_74ac138_tb;
     localparam NUM_FLAGS = 3;
@@ -44,7 +45,8 @@ module ic_74ac138_tb;
                         i === k && flags[FLAG_G1] && !flags[FLAG_NOT_G2A] &&
                         !flags[FLAG_NOT_G2B]);
                 end
-                #10.1
+                #`DELAY
+                #0
                 if (expected !== actual) begin
                     $display("FAIL: addr %d, flags %b, expected %b, got %b",
                              addr, flags, expected, actual);

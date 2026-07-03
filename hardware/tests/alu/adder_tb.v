@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 `include "src/alu/adder.v"
+`include "src/alu/adder_delay.v"
 
 module adder_tb;
     localparam WIDTH = 8;
@@ -25,7 +26,8 @@ module adder_tb;
                     x = i;
                     y = j;
                     c_in = k;
-                    #34
+                    #`DELAY
+                    #0
                     if (actual !== expected) begin
                         $display(
                                 "FAIL: %d + %d + %d, expected %d, got %d (%b)",

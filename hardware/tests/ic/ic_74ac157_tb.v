@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 `include "src/ic/ic_74ac157.v"
+`include "src/ic/ic_74ac157_delay.v"
 
 module ic_74ac157_tb;
     reg sel_b;
@@ -40,7 +41,8 @@ module ic_74ac157_tb;
                         b = j;
                         sel_b = k;
                         not_g = l;
-                        #13.3
+                        #`DELAY
+                        #0
                         if (y !== expected) begin
                             $display(
                                     "FAIL: mux(%d, %d, %d), enabled = %d, ",
